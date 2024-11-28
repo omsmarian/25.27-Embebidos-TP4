@@ -1,0 +1,3 @@
+../source/station.c:32:6:stationInit	16	static
+../source/station.c:51:6:stationSend	40	static
+../source/station.c:64:6:stationReceive	40	static

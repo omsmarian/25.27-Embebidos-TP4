@@ -1,0 +1,3 @@
+../source/App.c:70:6:App_Init	8	static
+../source/App.c:88:6:App_Run	24	static
+../source/App.c:141:6:update2	40	static

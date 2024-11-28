@@ -1,0 +1,14 @@
+../source/sensor.c:116:6:sensorInit	8	static
+../source/sensor.c:131:6:sensorConfig	16	static
+../source/sensor.c:186:18:sensorGetStatus	16	static
+../source/sensor.c:200:13:sensorGetAccelRawData	4	static
+../source/sensor.c:205:13:sensorGetMagnRawData	4	static
+../source/sensor.c:210:11:sensorGetAngleData	4	static
+../source/sensor.c:224:13:readData	8	static
+../source/sensor.c:265:13:processData	16	static
+../source/sensor.c:274:13:init	8	static
+../source/sensor.c:287:21:readRegs	32	static
+../source/sensor.c:298:21:writeRegs	32	static
+../source/sensor.c:309:21:transmitState	8	static
+../source/sensor.c:314:21:wait	16	static
+../source/sensor.c:323:13:checkBus	8	static

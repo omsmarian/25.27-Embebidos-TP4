@@ -1,0 +1,5 @@
+../source/serial.c:37:6:serialInit	24	static
+../source/serial.c:48:6:serialWriteData	16	static
+../source/serial.c:53:10:serialReadData	16	static
+../source/serial.c:62:6:serialWriteStatus	8	static
+../source/serial.c:67:6:serialReadStatus	8	static

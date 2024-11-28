@@ -1,0 +1,6 @@
+../source/timer.c:47:6:timerInit	8	static
+../source/timer.c:58:9:timerStart	32	static
+../source/timer.c:74:6:timerExpired	40	static
+../source/timer.c:86:6:timerDelay	24	static
+../source/timer.c:97:9:timerCounter	40	static
+../source/timer.c:112:13:timer_isr	4	static

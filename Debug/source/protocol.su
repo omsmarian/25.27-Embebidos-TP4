@@ -1,0 +1,4 @@
+../source/protocol.c:53:9:protocolPack	24	static
+../source/protocol.c:71:13:protocolUnpack	24	static
+../source/protocol.c:96:9:__Num2Chars__	24	static
+../source/protocol.c:121:9:__Chars2Num__	24	static

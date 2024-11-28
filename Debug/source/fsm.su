@@ -1,0 +1,5 @@
+../source/fsm.c:76:15:fsm	16	static
+../source/fsm.c:86:15:fsmInit	4	static
+../source/fsm.c:99:13:pass	4	static
+../source/fsm.c:100:13:reset	4	static
+../source/fsm.c:102:13:updateAngle	4	static

@@ -1,0 +1,7 @@
+../SDK/CMSIS/core_cm4.h:1677:22:__NVIC_EnableIRQ	16	static
+../source/I2C.c:122:6:I2C_Init	24	static
+../source/I2C.c:175:14:I2C_Transmit	16	static
+../source/I2C.c:205:14:I2C_GetStatus	16	static
+../source/I2C.c:217:12:SetBaudRate	40	static
+../source/I2C.c:246:6:I2C_IRQHandler	16	static
+../source/I2C.c:372:9:I2C0_IRQHandler	16	static

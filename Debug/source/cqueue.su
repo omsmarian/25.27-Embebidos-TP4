@@ -1,0 +1,9 @@
+../source/cqueue.c:51:12:queueInit	8	static
+../source/cqueue.c:63:9:queuePush	24	static
+../source/cqueue.c:79:8:queuePop	24	static
+../source/cqueue.c:96:8:queueFront	16	static
+../source/cqueue.c:97:8:queueBack	16	static
+../source/cqueue.c:98:6:queueIsEmpty	16	static
+../source/cqueue.c:99:6:queueIsFull	16	static
+../source/cqueue.c:101:9:queueSize	24	static
+../source/cqueue.c:110:6:queueClear	16	static

@@ -1,0 +1,2 @@
+../source/pisr.c:45:6:pisrRegister	16	static
+../source/pisr.c:72:9:SysTick_Handler	24	static
