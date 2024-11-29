@@ -12,7 +12,7 @@
 #include "board.h"
 #include "gpio.h"
 #include "macros.h"
-
+#include "os.h"
 
 /*******************************************************************************
  * CONSTANT AND MACRO DEFINITIONS USING #DEFINE
@@ -32,7 +32,6 @@
 
 #define HARD_CLEAR				0 // Clearing data is optional scince it is overwritten
 #define DEBUG_TP				1 // Debugging Test Points to measure ISR time
-
 
 /*******************************************************************************
  * ENUMERATIONS AND STRUCTURES AND TYPEDEFS
@@ -55,9 +54,9 @@ typedef enum {
 	CLOCK_FallingEdge,
 	GET_STATUS,
 	ACCES_DATA,
-	CLEAR_DATA
+	CLEAR_DATA,
+	UPDATE,
 } MagCardEvent_t;
-
 
 /*******************************************************************************
  * FUNCTION PROTOTYPES FOR PRIVATE FUNCTIONS WITH FILE LEVEL SCOPE
@@ -81,7 +80,6 @@ static uint8_t			__StoreChar__	(uint8_t track2_pos, char data[], uint8_t length)
 static uint64_t			__CharsToNum__	(char chars[], uint8_t length);
 static void				__ArrayCpy__	(char dest[], char src[], uint8_t length);
 
-
 /*******************************************************************************
  * STATIC VARIABLES AND CONST VARIABLES WITH FILE LEVEL SCOPE
  ******************************************************************************/
@@ -99,6 +97,7 @@ static const MagCard_t	magCardClr = { .data = { .PAN = { 0 }, .PAN_length = 0 },
 									   .discretionary_data = { .PVKI = { 0 }, .PVV = { 0 }, .CVV = { 0 } },
 									   .LRC = 0 };
 
+static OS_SEM *sem;
 
 /*******************************************************************************
  *******************************************************************************
@@ -108,8 +107,10 @@ static const MagCard_t	magCardClr = { .data = { .PAN = { 0 }, .PAN_length = 0 },
 
 // Primary Driver Services /////////////////////////////////////////////////////
 
-bool							MagCardInit					(void) { return !FSM(INIT); } // OFF: 0
-bool							MagCardGetStatus			(void) { return FSM(GET_STATUS) == DATA_READY; }
+bool							MagCardInit					(OS_SEM *_sem) { sem = _sem;
+																			 return !FSM(INIT); } // OFF: 0
+// bool							MagCardGetStatus			(void) { return FSM(GET_STATUS) == DATA_READY; }
+bool							MagCardUpdate				(void) { FSM(UPDATE); }
 uint64_t						MagCardGetCardNumber		(void) { return __CharsToNum__(magCard.data.PAN, magCard.data.PAN_length); }
 void							MagCardClearData			(void) { FSM(CLEAR_DATA); }
 
@@ -130,7 +131,6 @@ char *							MagCardGetPVKI				(void) { return magCardBuffer.discretionary_data.
 char *							MagCardGetPVV				(void) { return magCardBuffer.discretionary_data.PVV; }
 char *							MagCardGetCVV				(void) { return magCardBuffer.discretionary_data.CVV; }
 char							MagCardGetLRC				(void) { return magCardBuffer.LRC; }
-
 
 /*******************************************************************************
  *******************************************************************************
@@ -156,9 +156,12 @@ static MagCardState_t FSM (MagCardEvent_t event) // Main MagCard Event Handler (
 			break;
 
 		case PROCESSING:
-				 if (event == GET_STATUS)			{ state = (ProcessData()) ? DATA_READY : IDLE; }
+				 if (event == UPDATE)				{ state = (ProcessData()) ? DATA_READY : IDLE; }
 			else if (event == ENABLE_FallingEdge)	{ (state = READING) && (index = 0); }
 			else if (event == CLEAR_DATA)			{ (state = IDLE) && MagCardClr(); }
+
+			if (state == DATA_READY)
+				OSSemPost(sem, OS_OPT_POST_1, &os_err);
 			break;
 
 		case DATA_READY:
@@ -369,6 +372,5 @@ static uint8_t __StoreChar__ (uint8_t track2_pos, char field[], uint8_t length)
 
 	return track2_pos;
 }
-
 
 /******************************************************************************/

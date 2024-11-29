@@ -7,7 +7,7 @@ static volatile int key_flag = 0;
 
 static uint8_t state = ADD_USER;
 
-static bool return_flag = false;
+static bool return_flag = false, magcard_ready = false;
 
 void change_brightness_call(void) ;
 
@@ -267,7 +267,8 @@ bool read_from_encoder(char *id) {
 bool read_from_card(char *id) {
 
 
-	if (MagCardGetStatus())
+	// if (MagCardGetStatus())
+	if (magcard_ready)
 	{
 		uint64_t data;
 
@@ -366,18 +367,26 @@ void change_brightness_call(void) {
 	}
 }
 
+OS_SEM *sems[2] = {&encoder_sem, &magcard_sem};
+OS_SEM *pended_sem;
+OS_ERR err;
 void read_id(char *id) {
 
     int read_successful = 0;
 
     while (!read_successful) {
     	manage_access();
-        read_successful = read_from_encoder(id);
+
+		OSPendMulti(sems, 2, 0, OS_OPT_PEND_BLOCKING, &pended_sem, NULL, &err);
+
+		if (pended_sem == &encoder_sem) {
+			read_successful = read_from_encoder(id);
+		} else if (pended_sem == &magcard_sem) {
+			read_successful = read_from_card(id);
+		}
+
         if (return_flag)
         	break;
-        if (!read_successful) {
-            read_successful = read_from_card(id);
-        }
     }
     if (read_successful)
     	MY_PRINTF("User id: %s\n", id);

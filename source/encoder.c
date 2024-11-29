@@ -46,6 +46,7 @@ typedef struct{
 * @brief Checks for encoder gesture
 */
 static void directionCallback(void);
+
 /**
  * @brief Checks for switch gesture
  */
@@ -70,7 +71,6 @@ static uint8_t click_timer = 0; // Temporizador de clics
 static uint8_t time_since_last_click = 0; // Tiempo desde el último clic
 static bool click_detected = false; // Variable para detectar si se ha registrado un clic
 
-
 /*******************************************************************************
  *******************************************************************************
                         GLOBAL FUNCTION DEFINITIONS
@@ -83,13 +83,13 @@ bool encoder_Init(void)
   gpioMode(PIN_ENCODER_RCHB, INPUT_PULLUP);
   gpioMode(PIN_ENCODER_RSWITCH, INPUT_PULLUP);
 
-  pisrRegister(directionCallback, PISR_FREQUENCY_HZ/SPIN_FREQ);   // 1 ms 
-  pisrRegister(switchCallback, PISR_FREQUENCY_HZ/CLICK_FREQ);    // 50 ms
+//   pisrRegister(directionCallback, PISR_FREQUENCY_HZ/SPIN_FREQ);   // 1 ms 
+//   pisrRegister(switchCallback, PISR_FREQUENCY_HZ/CLICK_FREQ);    // 50 ms
+	
   direction = NONE;
 
   return 1;
 }
-
 
 action_t encoderRead(void)
 {
@@ -100,13 +100,14 @@ void ResetEncoder(void)
 {
   direction = NONE;
 }
+
 /*******************************************************************************
  *******************************************************************************
                         LOCAL FUNCTION DEFINITIONS
  *******************************************************************************
  ******************************************************************************/
 
-static void directionCallback(void)
+void directionCallback(void)
 {
   encoder_state.RCHA = gpioRead(PIN_ENCODER_RCHA);
   encoder_state.RCHB = gpioRead(PIN_ENCODER_RCHB);
@@ -139,11 +140,7 @@ static void directionCallback(void)
   }
 }
 
-
-
-
-
-static void switchCallback(void)
+void switchCallback(void)
 {
   encoder_state.RSWITCH = gpioRead(PIN_ENCODER_RSWITCH);
   if(!switch_falling_edge)

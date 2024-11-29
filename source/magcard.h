@@ -84,7 +84,14 @@ bool MagCardInit (void);
  * @note This function should be called before accessing the data
  * @example if (MagCardGetStatus()) { // Data is ready }
  */
-bool MagCardGetStatus (void);
+// bool MagCardGetStatus (void);
+
+/**
+ * @brief Update the semaphore
+ * @note This function should be called periodically
+ * @example MagCardUpdate();
+ */
+void MagCardUpdate (void);
 
 /**
  * @brief Get the card number (PAN)
