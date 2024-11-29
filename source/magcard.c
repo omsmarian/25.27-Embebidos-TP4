@@ -12,7 +12,6 @@
 #include "board.h"
 #include "gpio.h"
 #include "macros.h"
-#include "os.h"
 
 /*******************************************************************************
  * CONSTANT AND MACRO DEFINITIONS USING #DEFINE
@@ -67,6 +66,7 @@ static bool				Init			(void);
 static void				ReadEnable		(void);
 static void				ReadClock		(void);
 static void				ReadData		(void);
+static bool				ProcessData		(void);
 static bool				CheckParity		(void);
 static void				ParseData		(void);
 static void				MagCardCpy		(MagCard_t * dest, MagCard_t * src);
@@ -98,6 +98,7 @@ static const MagCard_t	magCardClr = { .data = { .PAN = { 0 }, .PAN_length = 0 },
 									   .LRC = 0 };
 
 static OS_SEM *sem;
+static OS_ERR os_err;
 
 /*******************************************************************************
  *******************************************************************************
@@ -110,7 +111,7 @@ static OS_SEM *sem;
 bool							MagCardInit					(OS_SEM *_sem) { sem = _sem;
 																			 return !FSM(INIT); } // OFF: 0
 // bool							MagCardGetStatus			(void) { return FSM(GET_STATUS) == DATA_READY; }
-bool							MagCardUpdate				(void) { FSM(UPDATE); }
+void							MagCardUpdate				(void) { FSM(UPDATE); }
 uint64_t						MagCardGetCardNumber		(void) { return __CharsToNum__(magCard.data.PAN, magCard.data.PAN_length); }
 void							MagCardClearData			(void) { FSM(CLEAR_DATA); }
 
@@ -156,9 +157,10 @@ static MagCardState_t FSM (MagCardEvent_t event) // Main MagCard Event Handler (
 			break;
 
 		case PROCESSING:
-				 if (event == UPDATE)				{ state = (ProcessData()) ? DATA_READY : IDLE; }
+				 if (event == UPDATE)				{ state = (ProcessData() ? DATA_READY : IDLE); }
 			else if (event == ENABLE_FallingEdge)	{ (state = READING) && (index = 0); }
-			else if (event == CLEAR_DATA)			{ (state = IDLE) && MagCardClr(); }
+			else if (event == CLEAR_DATA)			{ state = IDLE;
+													  MagCardClr(); }
 
 			if (state == DATA_READY)
 				OSSemPost(sem, OS_OPT_POST_1, &os_err);
@@ -166,7 +168,8 @@ static MagCardState_t FSM (MagCardEvent_t event) // Main MagCard Event Handler (
 
 		case DATA_READY:
 				 if (event == ENABLE_FallingEdge)	{ (state = READING) && (index = 0); }
-			else if (event == CLEAR_DATA)			{ (state = IDLE) && MagCardClr(); }
+			else if (event == CLEAR_DATA)			{ state = IDLE;
+													  MagCardClr(); }
 			break;
 
 		default:
@@ -196,20 +199,24 @@ static bool Init (void)
 
 static void ReadEnable (void)
 {
-#ifdef DEBUG_TP DEBUG_TP_SET_D;
-#endif // DEBUG_TP
+#ifdef DEBUG_MAGCARD
+	D_DEBUG_TP_SET;
+#endif // DEBUG_MAGCARD
 	FSM(!gpioRead(PIN_MAGCARD_ENABLE) ? ENABLE_FallingEdge : ENABLE_RisingEdge);
-#ifdef DEBUG_TP DEBUG_TP_CLR_D;
-#endif // DEBUG_TP
+#ifdef DEBUG_MAGCARD
+	D_DEBUG_TP_CLR;
+#endif // DEBUG_MAGCARD
 }
 
 static void ReadClock (void) // Very quick once SS is found
 {
-#ifdef DEBUG_TP DEBUG_TP_SET;
-#endif // DEBUG_TP
+#ifdef DEBUG_MAGCARD
+	D_DEBUG_TP_SET;
+#endif // DEBUG_MAGCARD
 	FSM(CLOCK_FallingEdge);
-#ifdef DEBUG_TP DEBUG_TP_CLR;
-#endif // DEBUG_TP
+#ifdef DEBUG_MAGCARD
+	D_DEBUG_TP_CLR;
+#endif // DEBUG_MAGCARD
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -242,7 +249,9 @@ static void ReadData ()
 
 static bool ProcessData (void)
 {
-	uint8_t i = 0, buffer = 0;
+	uint8_t i = 0;
+	bool status = false;
+
 	for (i++; i < MAX_CHARS && __Bits2Char__(track2 + i * DATA_LENGTH) != FIELD_SEPARATOR; i++); // Search for FS
 	magCard.data.PAN_length = i - 1; // SS and FS not included
 	for (i++; i < MAX_CHARS && __Bits2Char__(track2 + i * DATA_LENGTH) != END_SENTINEL; i++); // Search for ES
@@ -252,10 +261,12 @@ static bool ProcessData (void)
 	{
 		ParseData();
 		MagCardCpy(&magCardBuffer, &magCard); // Not really necessary (and time efficient), but safer
-		state = DATA_READY;
+		status = true;
 	}
 	else
-		state = IDLE;
+		status = false;
+
+	return status;
 }
 
 static bool CheckParity (void)
@@ -333,9 +344,9 @@ static char __Bits2Char__ (bool bits[])
 	return buffer;
 }
 
-static bool * __Char2Bits__ (char c)
+static bool* __Char2Bits__ (char c)
 {
-	bool bits[DATA_LENGTH];
+	static bool bits[DATA_LENGTH];
 	for (uint8_t i = 0; i < DATA_LENGTH; i++)
 		bits[i] = c & (1 << i);
 
@@ -346,7 +357,7 @@ static uint64_t __CharsToNum__ (char chars[], uint8_t length)
 {
 	uint64_t buffer = 0;
 	for (uint8_t i = 0; i < length; i++)
-		buffer = buffer * 10 + ASCII2CHAR(chars[i]);
+		buffer = buffer * 10 + ASCII2NUM(chars[i]);
 
 	return buffer;
 }
@@ -360,7 +371,7 @@ static void __ArrayCpy__ (char dest[], char src[], uint8_t length)
 static uint8_t __StoreBits__ (uint8_t track2_pos, char data[], uint8_t length)
 {
 	for (uint8_t j = 0; track2_pos < track2_length && j < length; track2_pos++, j++)
-		__ArrayCpy__(track2 + track2_pos, __Char2Bits__(ASCII2CHAR(data[j])), DATA_LENGTH);
+		__ArrayCpy__((char*)(track2 + track2_pos), (char*)__Char2Bits__(ASCII2NUM(data[j])), DATA_LENGTH);
 
 	return track2_pos;
 }
@@ -368,7 +379,7 @@ static uint8_t __StoreBits__ (uint8_t track2_pos, char data[], uint8_t length)
 static uint8_t __StoreChar__ (uint8_t track2_pos, char field[], uint8_t length)
 {
 	for (uint8_t j = 0; track2_pos < track2_length && j < length; track2_pos += DATA_LENGTH, j++)
-		field[j] = CHAR2ASCII(__Bits2Char__(track2 + track2_pos));
+		field[j] = NUM2ASCII(__Bits2Char__(track2 + track2_pos));
 
 	return track2_pos;
 }

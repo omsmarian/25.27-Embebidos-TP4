@@ -11,10 +11,9 @@
  * INCLUDE HEADER FILES
  ******************************************************************************/
 
+#include <os.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include "fsl_debug_console.h"
-
 
 /*******************************************************************************
  * CONSTANT AND MACRO DEFINITIONS USING #DEFINE
@@ -32,7 +31,6 @@
 #define CVV_LENGTH		        3
 #define UNUSED_SPACE			2
 #define LRC_LENGTH				1
-
 
 /*******************************************************************************
  * ENUMERATIONS AND STRUCTURES AND TYPEDEFS
@@ -63,7 +61,6 @@ typedef struct {
 	char LRC;
 } MagCard_t;
 
-
 /*******************************************************************************
  * FUNCTION PROTOTYPES WITH GLOBAL SCOPE
  ******************************************************************************/
@@ -76,7 +73,7 @@ typedef struct {
  * @note This function must be called before any other MagCard function
  * @example if (MagCardInit()) { // Initialization successful }
  */
-bool MagCardInit (void);
+bool MagCardInit (OS_SEM * sem);
 
 /**
  * @brief Get the status of the MagCard driver
@@ -134,7 +131,6 @@ char *	MagCardGetPVKI			(void);
 char *	MagCardGetPVV			(void);
 char *	MagCardGetCVV			(void);
 char	MagCardGetLRC			(void);
-
 
 /*******************************************************************************
  ******************************************************************************/

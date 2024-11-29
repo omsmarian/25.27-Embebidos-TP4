@@ -12,7 +12,7 @@
 #include "display.h"
 #include "board.h"
 #include "gpio.h"
-#include "pisr.h"
+//#include "pisr.h"
 #include "macros.h"
 
 
@@ -41,7 +41,7 @@
  * @brief Refresh the display
  * @note This function is called by the Periodic Interrupt Service Routine (PISR)
  */
-static void RefreshDisplay (void);
+void RefreshDisplay (void);
 
 // Helper functions ////////////////////////////////////////////////////////////
 
@@ -131,7 +131,7 @@ bool DisplayInit (void)
 		FOR(0, DISPLAY_SEGMENTS)	gpioMode(_segments[i], OUTPUT);
 		FOR(0, DISPLAY_DIGITS / 2)	gpioMode(_digits[i], OUTPUT);
 
-		pisrRegister(RefreshDisplay,  PISR_FREQUENCY_HZ / PWM_FREQUENCY_HZ);
+//		pisrRegister(RefreshDisplay,  PISR_FREQUENCY_HZ / PWM_FREQUENCY_HZ);
 	}
 
 	return _init;
@@ -189,7 +189,7 @@ void DisplayWritePassword(uint8_t position, uint8_t number)
 	//DisplayClear();
 
 	char str[] = "----";
-	position = CAP(position, 0, (DISPLAY_DIGITS - 1));
+	CAP(position, 0, (DISPLAY_DIGITS - 1));
 	str[position] = number + '0';
 
 	DisplayWriteChar(str);
@@ -204,7 +204,7 @@ void DisplayClear (void)
 int8_t DisplaySetBrightness (int8_t brightness)
 {
 	_brightness +=  brightness;
-	_brightness = CAP(_brightness, DISPLAY_MIN_BRIGHTNESS, DISPLAY_MAX_BRIGHTNESS);
+	CAP(_brightness, DISPLAY_MIN_BRIGHTNESS, DISPLAY_MAX_BRIGHTNESS);
 	return _brightness;
 }
 
@@ -215,7 +215,7 @@ int8_t DisplaySetBrightness (int8_t brightness)
  *******************************************************************************
  ******************************************************************************/
 
-static void RefreshDisplay (void)
+void RefreshDisplay (void)
 {
 	static uint8_t _index = 0, _count = 0;
 	uint8_t character = _characters[_buffer[_index]];

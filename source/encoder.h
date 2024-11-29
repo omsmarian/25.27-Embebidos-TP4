@@ -11,6 +11,7 @@
  * INCLUDE HEADER FILES
  ******************************************************************************/
 
+#include <os.h>
 #include <stdbool.h>
 #include "gpio.h"
 
@@ -35,7 +36,7 @@ typedef enum {
  * @brief Initialize the encoder
  * @return return true if the encoder was initialized successfully
  */
-bool encoder_Init(void);
+bool encoder_Init(OS_SEM* sem);
 
 /**
  * @brief Reads the encoder gesture
