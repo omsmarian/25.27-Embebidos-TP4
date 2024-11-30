@@ -111,7 +111,7 @@ static OS_ERR os_err;
 bool							MagCardInit					(OS_SEM *_sem) { sem = _sem;
 																			 return !FSM(INIT); } // OFF: 0
 // bool							MagCardGetStatus			(void) { return FSM(GET_STATUS) == DATA_READY; }
-void							MagCardUpdate				(void) { FSM(UPDATE); }
+// void							MagCardUpdate				(void) { FSM(UPDATE); }
 uint64_t						MagCardGetCardNumber		(void) { return __CharsToNum__(magCard.data.PAN, magCard.data.PAN_length); }
 void							MagCardClearData			(void) { FSM(CLEAR_DATA); }
 
@@ -153,14 +153,8 @@ static MagCardState_t FSM (MagCardEvent_t event) // Main MagCard Event Handler (
 
 		case READING:
 				 if (event == CLOCK_FallingEdge)	{ ReadData(); }
-			else if (event == ENABLE_RisingEdge)	{ state = PROCESSING; } // Process data outside the ISR
+			else if (event == ENABLE_RisingEdge)	{ state = (ProcessData() ? DATA_READY : IDLE); } // Process data outside the ISR
 			break;
-
-		case PROCESSING:
-				 if (event == UPDATE)				{ state = (ProcessData() ? DATA_READY : IDLE); }
-			else if (event == ENABLE_FallingEdge)	{ (state = READING) && (index = 0); }
-			else if (event == CLEAR_DATA)			{ state = IDLE;
-													  MagCardClr(); }
 
 			if (state == DATA_READY)
 				OSSemPost(sem, OS_OPT_POST_1, &os_err);

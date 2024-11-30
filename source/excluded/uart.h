@@ -135,6 +135,8 @@ uint8_t uartWriteMsg (uart_id_t id, const uchar_t* msg, uint8_t cant);
 */
 uint8_t uartIsTxMsgComplete (uart_id_t id);
 
+void handler (void);
+
 // Blocking Services ///////////////////////////////////////////////////////////
 
 /*******************************************************************************

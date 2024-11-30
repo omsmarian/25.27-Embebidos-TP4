@@ -136,7 +136,7 @@ bool uartInit (uart_id_t id, uart_cfg_t config)
 		tx_queue[id] = queueInit();
 
 		/* Register PISR to update the queues */
-		pisrRegister(handler, PISR_FREQUENCY_HZ / UART_FREQUENCY_HZ);
+		// pisrRegister(handler, PISR_FREQUENCY_HZ / UART_FREQUENCY_HZ);
 
 		/* Set up a timer to update the queues */
 		// timerInit();
