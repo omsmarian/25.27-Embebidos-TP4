@@ -11,7 +11,7 @@
  * INCLUDE HEADER FILES
  ******************************************************************************/
 
-#include <os.h>
+#include "os.h"
 #include <stdbool.h>
 #include <stdint.h>
 

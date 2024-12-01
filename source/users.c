@@ -9,6 +9,7 @@
 
 static user_t users[MAX_USERS];
 static int current_user_count = 0;
+static bool floors[MAX_FLOORS][MAX_ROOMS];
 
 char* my_strdup(const char *src)
 {
@@ -26,13 +27,28 @@ char* my_strdup(const char *src)
     return str;
 }
 
-void add_user(char *id, char *password)
+void add_user(char *id, char *password, floor_t floor, room_t room)
 {
-    if (current_user_count >= MAX_USERS)
+    if ((current_user_count >= MAX_USERS) || (floor >= MAX_FLOORS) || (room >= MAX_ROOMS) || (floors[floor][room]))
         return;
 
     users[current_user_count].id = my_strdup(id);
     users[current_user_count].password = my_strdup(password);
+	if (!floor && !room)
+	{
+		for (floor = 1; floor < MAX_FLOORS; floor++)
+			for (room = 0; room < MAX_ROOMS; room++)
+				if (!floors[floor][room])
+					break;
+		// for (room = 0; room < MAX_ROOMS; room++)
+		// 	if (!floors[floor][room])
+		// 		break;
+		// while (floors[floor][MAX_USERS_PER_FLOOR])
+		// 	floor++;
+	}
+	users[current_user_count].floor = floor;
+	users[current_user_count].room = room;
+	floors[floor][room] = true;
 
     current_user_count++;
 }
@@ -49,6 +65,8 @@ void delete_user(char *id, char *password)
 
             for (int j = i; j < current_user_count - 1; j++)
                 users[j] = users[j + 1];
+
+			floors[users[i].floor][users[i].room] = false;
 
             current_user_count--;
 
@@ -96,4 +114,18 @@ int return_password_length (char* id)
 	}
 
 	return 0;
+}
+
+floor_t return_user_floor(char* id)
+{
+	for (int i = 0; i < current_user_count; i++)
+		if (strcmp(users[i].id, id) == 0)
+			return users[i].floor;
+}
+
+room_t return_user_room(char* id)
+{
+	for (int i = 0; i < current_user_count; i++)
+		if (strcmp(users[i].id, id) == 0)
+			return users[i].room;
 }

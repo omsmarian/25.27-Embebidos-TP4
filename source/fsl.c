@@ -3,6 +3,7 @@
 #include "fsl.h"
 #include "pit.h"
 #include "timer.h"
+#include "cqueue.h"
 
 static volatile char key_pressed = 0;
 static volatile int key_flag = 0;
@@ -16,7 +17,13 @@ static OS_PEND_DATA pend_data_table[3];
 static OS_OBJ_QTY pended_count;
 static OS_SEM *pended_sem;
 static OS_ERR err;
-static ticks_t timer_access, timer_error;
+static ticks_t timer_access, timer_error, timer_gateway;
+static OS_Q *msgQueue;
+static bool floors[MAX_FLOORS][MAX_ROOMS];
+static room_t floor_count[MAX_FLOORS];
+// static uint8_t floors[MAX_FLOORS];
+static queue_id_t queue;
+OS_SEM *qSems[2];
 
 void change_brightness_call(void);
 void add_user_call(void);
@@ -30,7 +37,7 @@ void manage_error(void);
 void read_password(char *password);
 void read_id(char *id);
 
-void init_fsl()
+void init_fsl(OS_Q *_msgQueue)
 {
 	encoder_Init(&encoder_sem);
 	DisplayInit();
@@ -54,6 +61,16 @@ void init_fsl()
 	// pend_data_table[2].PendObjPtr = (OS_PEND_OBJ*)&error_sem;
 
 	PIT_Init(PIT0_ID, manage_access, 10);
+
+	msgQueue = _msgQueue;
+
+	add_user("00000001", "1111", 1, 0);
+	add_user("00000002", "2222", 1, 1);
+	add_user("00000003", "3333", 2, 0);
+	add_user("00000004", "4444", 2, 1);
+	add_user("00000005", "5555", 3, 0);
+	add_user("00000006", "6666", 3, 1);
+//	floor_count[3] = floor_count[2] = floor_count[1] = 2;
 }
 
 void update_fsl()
@@ -543,7 +560,7 @@ void add_user_call()
 			return;
 	}
 
-	add_user(id, password);
+	add_user(id, password, 0, 0);
 
 	print_menu(state);
 }
@@ -577,6 +594,11 @@ void delete_user_call()
 
 
 	delete_user(id, password);
+	floor_t floor = return_user_floor(id);
+	room_t room = return_user_room(id);
+	if (floors[floor][room])
+		floor_count[floor]--;
+	floors[floor][room] = false;
 
 	print_menu(state);
 }
@@ -661,6 +683,37 @@ void access_system_call(void)
 			access_flag = true;
 			// timer_access = timerStart(TIMER_MS2TICKS(5000));
 //			LEDS_Set(ALL);
+
+			floor_t floor = return_user_floor(id);
+			room_t room = return_user_room(id);
+			if (floors[floor][room])
+				floor_count[floor]--;
+			else
+				floor_count[floor]++;
+			floors[floor][room] = !floors[floor][room];
+
+			// char floor_count_str[(MAX_FLOORS - 1) * 2 + 1] = {0};
+			char message[(MAX_FLOORS - 1) * 2 + 6] = { 0xAA, 0x55, 0xC3, 0x3C, 0x00, 0x01,
+													   floor_count[1]%10, floor_count[1]/10,
+													   floor_count[2]%10, floor_count[2]/10,
+													   floor_count[3]%10, floor_count[3]/10 };
+//			for (int i = 0; i < MAX_FLOORS - 1; i++)
+//			{
+//				// char count_str[3];
+//				int count = floor_count[i+1];
+//				message[i + 0 + 6] = (count / 10); //+ '0';
+//				message[i + 1 + 6] = (count % 10); //+ '0';
+//				// count_str[i + 2 - 1] = '\0';
+//				// strcat(floor_count_str, count_str);
+//			}
+			message[4] = (MAX_FLOORS - 1) * 2 + 1;
+//			OSQFlush(msgQueue, &err);
+//			OSQPost(msgQueue, &floor_count_str[0], (MAX_FLOORS - 1) * 2, OS_OPT_POST_FIFO, &err);
+			queueClear(queue);
+			for (int i = 0; i < (MAX_FLOORS - 1) * 2 + 6; i++)
+				queuePush(queue, message[i]);
+			OSSemPost(qSems[1], OS_OPT_POST_1, &err);
+			OS_ERR aux = err;
 		}
 		else
 		{
@@ -668,7 +721,7 @@ void access_system_call(void)
 //			LEDS_Set(ONLY_CENTER);
 		}
 
-		timer_access = timerStart(TIMER_MS2TICKS(5000));
+		timer_access = timerStart(TIMER_MS2TICKS(5000), NULL);
 //		OSTmrCreate(&timer_access, "Access Timer", 0, 5000, OS_OPT_TMR_ONE_SHOT, NULL, NULL, &err);
 //		OSTmrStart(&timer_access, &err);
 
@@ -689,7 +742,7 @@ void access_system_call(void)
 			// timer_error = timerStart(TIMER_MS2TICKS(5000));
 		}
 
-		timer_error = timerStart(TIMER_MS2TICKS(5000));
+		timer_error = timerStart(TIMER_MS2TICKS(5000), NULL);
 //		OSTmrCreate(&timer_error, "Error Timer", 0, 5000, OS_OPT_TMR_ONE_SHOT, NULL, NULL, &err);
 //		OSTmrStart(&timer_error, &err);
 
@@ -703,6 +756,7 @@ void manage_access(void)
 {
 	bool timer_access_expired = timerExpired(timer_access);
 	bool timer_error_expired = timerExpired(timer_error);
+//	bool timer_gateways_expired = timerExpired(timer_gateway);
 
  	if (timer_access_expired)
 // 	if (OSTmrRemainGet(&timer_access, &err))
@@ -736,6 +790,11 @@ void manage_access(void)
 		gpioWrite(PIN_LED_BLUE, LOW);
 	else
 		gpioWrite(PIN_LED_BLUE, HIGH);
+
+//	if (timer_gateways_expired)
+//	{
+//		OSSemPost(qSems[0], OS_OPT_POST_1, &err);
+//	}
 }
 
 //void manage_access(void)
@@ -749,3 +808,19 @@ void manage_access(void)
 //	error_flag = false;
 //	LEDS_Set(NOTHING);
 //}
+
+void setQueue(queue_id_t q)
+{
+	queue = q;
+}
+
+void setQueueSems(OS_SEM *semRx, OS_SEM *semTx)
+{
+	qSems[0] = semRx;
+	qSems[1] = semTx;
+}
+
+void setGatewayTimer(ticks_t timer)
+{
+	timer_gateway = timer;
+}

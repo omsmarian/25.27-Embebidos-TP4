@@ -25,7 +25,7 @@
 // Queues configuration ////////////////////////////////////////////////////////
 
 #define QUEUE_MAX_SIZE		24													// Complete with desired queue size
-#define QUEUES_MAX_CANT		2													// Complete with desired number of queues
+#define QUEUES_MAX_CANT		10													// Complete with desired number of queues
 
 // Invalid data for the queue //////////////////////////////////////////////////
 

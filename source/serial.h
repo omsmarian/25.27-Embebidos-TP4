@@ -24,6 +24,11 @@
 #define DEVELOPMENT_MODE			1
 #define DEBUG_TP					1											// Debugging test points to measure ISR time
 
+#define SERIAL_DEFAULT_BAUDRATE		1200
+
+/*******************************************************************************
+ * ENUMERATIONS AND STRUCTURES AND TYPEDEFS
+ ******************************************************************************/
 
 typedef unsigned char uchar_t;
 
@@ -54,6 +59,7 @@ uchar_t* serialReadData (uint8_t* len);
 
 bool serialWriteStatus (void);
 bool serialReadStatus (void);
+uint8_t serialReadStatusLength (void);
 
 /*******************************************************************************
  ******************************************************************************/

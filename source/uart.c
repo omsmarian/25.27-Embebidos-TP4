@@ -15,6 +15,7 @@
 #include <gpio.h>
 #include "hardware.h"
 // #include "MK64F12.h"
+#include "os.h"
 
 #include "board.h"
 #include "cqueue.h"
@@ -78,6 +79,7 @@ static queue_id_t tx_queue[UART_CANT_IDS];
 // static tim_id_t uart_timers[UART_CANT_IDS];
 
 static uart_id_t irq = UART_CANT_IDS;
+static OS_SEM *uart_sem_rx, *uart_sem_tx;
 
 /*******************************************************************************
  *******************************************************************************
@@ -183,6 +185,12 @@ uint8_t uartIsTxMsgComplete (uart_id_t id)
 	return queueIsEmpty(tx_queue[id]);
 }
 
+void uartSetSem (OS_SEM *semRx, OS_SEM *semTx)
+{
+	uart_sem_rx = semRx;
+	uart_sem_tx = semTx;
+}
+
 /*******************************************************************************
  *******************************************************************************
 						LOCAL FUNCTION DEFINITIONS
@@ -228,6 +236,12 @@ void update (uart_id_t id)
 	count = UART_REG(id, TCFIFO);
 	while((count++ != ((UART_REG(id, PFIFO) & UART_PFIFO_TXFIFOSIZE_MASK) >> UART_PFIFO_TXFIFOSIZE_SHIFT))
 		&& !queueIsEmpty(tx_queue[id])) UART_REG(id, D) = queuePop(tx_queue[id]);
+
+	OS_ERR err;
+	if (!queueIsEmpty(rx_queue[id]))
+		OSSemPost(uart_sem_rx, OS_OPT_POST_1, &err);
+	if (queueIsEmpty(tx_queue[id]))
+		OSSemPost(uart_sem_tx, OS_OPT_POST_1, &err);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,26 +1,28 @@
 /*******************************************************************/
 /*** Configuration ***/
 /*******************************************************************/
-const serialPortName = "COM51";
-const thingSpeakAPIKey = "DVDTVSXTQFY8QZXT";
+const serialPortName = "COM3";
+const thingSpeakAPIKey = "5BLYJPBPUDO8QU0N";
 /*******************************************************************/
 
 
 /*******************************************************************/
 /*** Gateway code ***/
 /*******************************************************************/
-const SerialPort = require("serialport");
+const SerialPort = require("serialport").SerialPort;
 const https = require('https');
 
 var discard = false;
 
-const port = new SerialPort(serialPortName, {  
+const port = new SerialPort({
+	path: serialPortName,
     baudRate: 1200
 });
 
 function tx(buff) {
     port.write(Buffer.from([0xaa, 0x55, 0xc3, 0x3c, buff.length]));
     port.write(buff);
+	console.log("Message sent:", buff);
 }
 
 function txResponse(code) {
@@ -139,7 +141,7 @@ port.on('open', () => {
 });
 
 console.log("------------------------------------------");
-console.log("22.99 2019 - Gateway v0.00");
+console.log("25.27 2024 - Gateway v0.00");
 console.log("Using API Key:", thingSpeakAPIKey);
 console.log("Using COM port:", serialPortName);
 console.log("Use CTRL+C to exit");

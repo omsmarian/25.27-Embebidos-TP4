@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "os.h"
 
 /*******************************************************************************
  * CONSTANT AND MACRO DEFINITIONS USING #DEFINE
@@ -136,6 +137,7 @@ uint8_t uartWriteMsg (uart_id_t id, const uchar_t* msg, uint8_t cant);
 uint8_t uartIsTxMsgComplete (uart_id_t id);
 
 void handler (void);
+void uartSetSem (OS_SEM *semRx, OS_SEM *semTx);
 
 // Blocking Services ///////////////////////////////////////////////////////////
 

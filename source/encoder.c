@@ -8,7 +8,7 @@
  * INCLUDE HEADER FILES
  ******************************************************************************/
 
-#include <os.h>
+#include "os.h"
 
 #include "encoder.h"
 #include "board.h"

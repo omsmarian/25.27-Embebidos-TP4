@@ -13,7 +13,7 @@
 #include "magcard.h"
 #include "LEDs.h"
 #include "hardware.h"
-#include  <os.h>
+#include  "os.h"
 
 /* Task Start */
 #define TASKSTART_STK_SIZE 		512u

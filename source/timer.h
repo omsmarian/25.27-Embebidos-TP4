@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "pit.h"
 
 /*******************************************************************************
  * CONSTANT AND MACRO DEFINITIONS USING #DEFINE
@@ -47,7 +48,7 @@ void timerInit(void);
  * @param ticks time until timer expires, in ticks
  * @return Timeout value
  */
-ticks_t timerStart(ticks_t ticks);
+ticks_t timerStart(ticks_t ticks, callback_t callback);
 
 /**
  * @brief Verify if a timer has run timeout
@@ -55,6 +56,12 @@ ticks_t timerStart(ticks_t ticks);
  * @return 1 = timer expired
  */
 bool timerExpired(ticks_t timeout);
+
+/**
+ * @brief Stop a timer
+ * @param callback callback to be stopped
+ */
+void timerStop(callback_t callback);
 
 // Blocking services ///////////////////////////////////////////////////////////
 

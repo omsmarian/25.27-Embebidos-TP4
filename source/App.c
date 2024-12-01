@@ -15,18 +15,19 @@
 #include <gpio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <os.h>
+#include "os.h"
 #include <uart.h>
 
 #include "board.h"
 #include "hardware.h"
 #include "macros.h"
-//#include "serial.h"
-//#include "timer.h"
+#include "serial.h"
+#include "timer.h"
 #include "encoder.h"
 #include "display.h"
 #include "magcard.h"
 #include "fsl.h"
+#include "cqueue.h"
 
 #include "gpio.h"
 #include "board.h"
@@ -63,18 +64,38 @@ static CPU_STK TaskStartStk[TASKSTART_STK_SIZE];
 static OS_TCB TaskGatewayTCB;
 static CPU_STK TaskGatewayStk[TASKG_STK_SIZE];
 
+/* Task Keep Alive */
+#define TASKKA_STK_SIZE			256u
+#define TASKKA_STK_SIZE_LIMIT	(TASKKA_STK_SIZE / 10u)
+#define TASKKA_PRIO              3u
+static OS_TCB TaskKeepAliveTCB;
+static CPU_STK TaskKeepAliveStk[TASKKA_STK_SIZE];
+
 /* Semaphores */
-static OS_SEM semGateway;
-static uint64_t card;
+static OS_SEM semGatewayTx, semGatewayRx, semSerialTx, semSerialRx;
+static OS_SEM semTimeout15s, semKeepAlive;
+
+/* Message Queue */
+static OS_Q msgQueue;
+static queue_id_t queue;
+
+static uint64_t card = '0';
+static ticks_t timeout_15s, timeout_keep_alive;
+static OS_PEND_DATA pend_data_table[2];
+static OS_PEND_DATA pend_data_table2[2];
+
+/* Mutex */
+static OS_MUTEX gateway_mutex;
 
 /*******************************************************************************
  * FUNCTION PROTOTYPES FOR PRIVATE FUNCTIONS WITH FILE LEVEL SCOPE
  ******************************************************************************/
 
 static void TaskStart(void *p_arg);
+static void TaskKeepAlive(void *p_arg);
 // static void TASK_Encoder(void *p_arg);
 // static void TASK_MagCard(void *p_arg);
- static void TASK_Gateway(void *p_arg);
+static void TASK_Gateway(void *p_arg);
 static void TmrEncoder1Callback(void);
 static void TmrEncoder2Callback(void);
 // static void TmrMagCardCallback(OS_TMR *p_tmr, void *p_arg);
@@ -83,6 +104,8 @@ static void TmrDisplayCallback(void);
 static void TmrUARTCallback(void);
 // static void TmrBlinkyCallback(OS_TMR *p_tmr, void *p_arg);
 static void TmrBlinkyCallback(void);
+static void Timeout15sCallback(void);
+static void TimeoutKeepAliveCallback(void);
 
 /*******************************************************************************
  * STATIC VARIABLES AND CONST VARIABLES WITH FILE LEVEL SCOPE
@@ -136,16 +159,32 @@ void App_Init (void)
                  (OS_OPT_TASK_STK_CHK | OS_OPT_TASK_STK_CLR | OS_OPT_TASK_SAVE_FP),
                  &err);
 
-	init_fsl();
 	// serialInit();
 	// timerInit();
-	PIT_Init(PIT0_ID, TmrBlinkyCallback, 1);
+	PIT_Init(PIT0_ID, TmrBlinkyCallback, 10);
 	PIT_Init(PIT0_ID, TmrEncoder1Callback, 1000);
 	PIT_Init(PIT0_ID, TmrEncoder2Callback, 20);
 //	 PIT_Init(PIT3_ID, TmrMagCardCallback, 1);
 //	 PIT_Init(PIT3_ID, TmrGatewayCallback, 1);
 	PIT_Init(PIT0_ID, TmrDisplayCallback, 7500);
 	PIT_Init(PIT0_ID, TmrUARTCallback, 200);
+
+	serialInit();
+
+	/* Create Message Queue */
+	OSQCreate(&msgQueue, "Message Queue", 10, &err);
+	queue = queueInit();
+	init_fsl(&msgQueue);
+	OSSemCreate(&semGatewayRx, "Gateway Semaphore", 0, &err);
+	OSSemCreate(&semGatewayTx, "Gateway Tx Semaphore", 0, &err);
+	setQueue(queue);
+	setQueueSems(&semGatewayRx, &semGatewayTx);
+	OSSemCreate(&semSerialTx, "Serial Tx Semaphore", 0, &err);
+	OSSemCreate(&semSerialRx, "Serial Rx Semaphore", 0, &err);
+	OSSemCreate(&semTimeout15s, "Timeout 15s Semaphore", 0, &err);
+	OSSemCreate(&semKeepAlive, "Keep Alive Semaphore", 0, &err);
+	uartSetSem(&semSerialRx, &semSerialTx);
+	OSMutexCreate(&gateway_mutex, "Gateway Mutex", &err);
 }
 
 /**
@@ -182,7 +221,7 @@ static void TaskStart(void *p_arg)
     /* Create semaphores */
 	// OSSemCreate(&semEncoder, "Encoder Semaphore", 0, &os_err);
 	// OSSemCreate(&semMagCard, "MagCard Semaphore", 0, &os_err);
-	OSSemCreate(&semGateway, "Gateway Semaphore", 0, &os_err);
+	// OSSemCreate(&semGateway, "Gateway Semaphore", 0, &os_err);
 
 	/* Create Encoder Timer */
 	OS_TMR TmrEncoder1;
@@ -225,6 +264,17 @@ static void TaskStart(void *p_arg)
 				(OS_TMR_CALLBACK_PTR)TmrGatewayCallback,
 				 0x0,
 				&os_err);
+
+	// /* Create Keep Alive Timer */
+	// OS_TMR TmrKeepAlive;
+	// OSTmrCreate(&TmrKeepAlive,
+	// 			"Keep Alive Timer",
+	// 			 0u,
+	// 			 10000u,
+	// 			 OS_OPT_TMR_PERIODIC,
+	// 			(OS_TMR_CALLBACK_PTR)TimeoutKeepAliveCallback,
+	// 			 0x0,
+	// 			&os_err);
 
 	/* Create Display Timer */
 	OS_TMR TmrDisplay;
@@ -304,12 +354,35 @@ static void TaskStart(void *p_arg)
 				 (OS_OPT_TASK_STK_CHK | OS_OPT_TASK_STK_CLR),
 				 &os_err);
 
+	/* Create Keep Alive Task */
+	OSTaskCreate(&TaskKeepAliveTCB,         // tcb
+				 "Task Keep Alive",          // name
+				  TaskKeepAlive,           // func
+				  0u,                     // arg
+				  TASKKA_PRIO,             // prio
+				 &TaskKeepAliveStk[0u],     // stack
+				  TASKKA_STK_SIZE_LIMIT,   // stack limit
+				  TASKKA_STK_SIZE,         // stack size
+				  0u,
+				  0u,
+				  0u,
+				 (OS_OPT_TASK_STK_CHK | OS_OPT_TASK_STK_CLR),
+				 &os_err);
+
 	gpioMode(PIN_LED_RED, OUTPUT);
 	gpioMode(PIN_LED_GREEN, OUTPUT);
 	gpioMode(PIN_LED_BLUE, OUTPUT);
 	gpioWrite(PIN_LED_RED, HIGH);
 	gpioWrite(PIN_LED_GREEN, HIGH);
 	gpioWrite(PIN_LED_BLUE, HIGH);
+
+	pend_data_table[0].PendObjPtr = (OS_PEND_OBJ*)&semSerialRx;
+	pend_data_table[1].PendObjPtr = (OS_PEND_OBJ*)&semTimeout15s;
+	pend_data_table2[0].PendObjPtr = (OS_PEND_OBJ*)&semSerialRx;
+	pend_data_table2[1].PendObjPtr = (OS_PEND_OBJ*)&semKeepAlive;
+
+	timeout_15s = timerStart(TIMER_MS2TICKS(15000), Timeout15sCallback);
+	timeout_keep_alive = timerStart(TIMER_MS2TICKS(1000), TimeoutKeepAliveCallback);
 
 	/* Start Timers */
 //	OSTmrStart(&TmrEncoder1,	&os_err);
@@ -357,11 +430,141 @@ static void TASK_Gateway(void *p_arg)
 {
 	(void)p_arg;
 	OS_ERR os_err;
+	void *msg;
+	uchar_t _msg[12];
+	OS_MSG_SIZE msg_size;
+	CPU_TS ts;
+	static bool msg_sent, msg_received;
 
 	while (1)
 	{
-		OSSemPend(&semGateway, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
-		// gpioToggle(PIN_LED_RED);
+		OSSemPend(&semTimeout15s, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
+		OSSemPend(&semGatewayTx, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
+		msg_received = msg_sent = false;
+		// msg = OSQPend(&msgQueue,
+		// 			   0,
+		// 			   OS_OPT_PEND_BLOCKING,
+		// 			  &msg_size,
+		// 			  &ts,
+		// 			  &os_err);
+		uint8_t i = queueSize(queue);
+		// for (uint8_t i=0; i<6; i++)
+			// _msg[i] = *(char *)(msg + i);
+		if (i <= 12)
+			for (uint8_t j=i; j>0; j--)
+				_msg[i-j] = queuePop(queue);
+		else
+			msg_received = true; // Not really (just skips)
+
+		while (!msg_received)
+		{
+			OSMutexPend(&gateway_mutex, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
+
+			// gpioToggle(PIN_LED_RED);
+	//		if (serialReadStatus())
+	//		{
+	//			uchar_t len;
+	//			uchar_t *data = serialReadData(&len);
+	//			card = *data;
+	//		}
+			if (!msg_sent)
+			{
+				OSSemPend(&semSerialTx, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
+				// if (serialWriteStatus())
+				{
+					// serialWriteData((uchar_t *)msg, msg_size);
+					serialWriteData(_msg, i);
+					// if (++card > 'Z') card = NUM2ASCII(0);
+				}
+				timeout_15s = timerStart(TIMER_MS2TICKS(15000), Timeout15sCallback);
+				msg_sent = true;
+			}
+			OSPendMulti(pend_data_table, 2, 0, OS_OPT_PEND_BLOCKING, &os_err);
+
+			if ((pend_data_table[0].RdyObjPtr == (OS_PEND_OBJ*)&semSerialRx) && (serialReadStatusLength() == 6))
+			{
+//				timerStop(Timeout15sCallback);
+				// msg_sent = check_msg(_msg, i);
+				// OSSemPend(&semSerialRx, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
+				// if (serialReadStatus())
+				{
+					// timerDelay(TIMER_MS2TICKS(10));
+					uchar_t len;
+					uchar_t *data = serialReadData(&len);
+//					for (uint8_t j=0; j<len; j++)
+//						_msg[j] = data[j];
+					uchar_t msg_ok[] = { 0xAA, 0x55, 0xC3, 0x3C, 0x01, 0x81 };
+					uchar_t msg_fail[] = { 0xAA, 0x55, 0xC3, 0x3C, 0x01, 0xC1 };
+					// if (!strcmp((char *)data, msg_ok))
+					// 	msg_sent = true;
+					// else if (!strcmp((char *)data, msg_fail))
+					// 	msg_sent = false;
+//					msg_sent = !strcmp((char *)data, (char *)msg_ok);
+					msg_received = true;
+					if (len == 6)
+						for (uint8_t j=0; j<len; j++)
+							msg_received = msg_received && (data[j] == msg_ok[j]);
+				}
+			}
+			else if (pend_data_table[1].RdyObjPtr == (OS_PEND_OBJ*)&semTimeout15s)
+			{
+				msg_sent = false;
+			}
+
+			OSMutexPost(&gateway_mutex, OS_OPT_POST_NONE, &os_err);
+		}
+	}
+}
+
+static void TaskKeepAlive(void *p_arg)
+{
+	(void)p_arg;
+	OS_ERR os_err;
+	uchar_t _msg[6]		= { 0xAA, 0x55, 0xC3, 0x3C, 0x01, 0x02 };
+	uchar_t msg_ok[6]	= { 0xAA, 0x55, 0xC3, 0x3C, 0x01, 0x82 };
+	uchar_t msg_fail[6]	= { 0xAA, 0x55, 0xC3, 0x3C, 0x01, 0xC1 };
+	uint8_t fail_count = 0;
+	static bool msg_sent, msg_received;
+
+	while (1)
+	{
+		OSSemPend(&semKeepAlive, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
+		msg_received = msg_sent = false;
+		fail_count = 0;
+
+		while (!msg_received)
+		{
+			OSMutexPend(&gateway_mutex, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
+
+			if (!msg_sent)
+			{
+				OSSemPend(&semSerialTx, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
+				serialWriteData(_msg, 6);
+				timeout_keep_alive = timerStart(TIMER_MS2TICKS(1000), TimeoutKeepAliveCallback);
+				msg_sent = true;
+			}
+
+			OSPendMulti(pend_data_table2, 2, 0, OS_OPT_PEND_BLOCKING, &os_err);
+			if ((pend_data_table2[0].RdyObjPtr == (OS_PEND_OBJ*)&semSerialRx) && (serialReadStatusLength() == 6))
+			{
+				uchar_t len, *data = serialReadData(&len);
+				msg_received = true;
+				if (len == 6)
+					for (uint8_t j=0; j<len; j++)
+						msg_received = msg_received && (data[j] == msg_ok[j]);
+			}
+			else if (pend_data_table2[1].RdyObjPtr == (OS_PEND_OBJ*)&semKeepAlive)
+			{
+				if (++fail_count >= 5)
+				{
+					fail_count = 5;
+					gpioToggle(PIN_LED_RED);
+				}
+				msg_sent = false;
+			}
+
+			OSMutexPost(&gateway_mutex, OS_OPT_POST_NONE, &os_err);
+		}
 	}
 }
 
@@ -403,9 +606,22 @@ static void TmrUARTCallback(void)
 // static void BlinkyCallback(OS_TMR *p_tmr, void *p_arg)
 static void TmrBlinkyCallback(void)
 {
-//	gpioToggle(PIN_LED_RED);
+	gpioToggle(PIN_LED_RED);
+	// OS_ERR os_err;
+	// OSSemPost(&semGateway, OS_OPT_POST_1, &os_err);
+}
+
+static void Timeout15sCallback(void)
+{
 	OS_ERR os_err;
-	OSSemPost(&semGateway, OS_OPT_POST_1, &os_err);
+	OSSemPost(&semTimeout15s, OS_OPT_POST_1, &os_err);
+//	msg_sent = false;
+}
+
+static void TimeoutKeepAliveCallback(void)
+{
+	OS_ERR os_err;
+	OSSemPost(&semKeepAlive, OS_OPT_POST_1, &os_err);
 }
 
 /******************************************************************************/

@@ -15,6 +15,7 @@
 #include "timer.h"
 //#include "pisr.h"
 #include "pit.h"
+#include <stdlib.h>
 
 /*******************************************************************************
  * CONSTANT AND MACRO DEFINITIONS USING #DEFINE
@@ -23,6 +24,8 @@
 #define DEVELOPMENT_MODE		1
 
 #define TIMER_FREQUENCY_HZ		(1000000 / TIMER_TICK_US)
+
+#define TIMER_MAX_TIMERS		20
 
 /*******************************************************************************
  * FUNCTION PROTOTYPES FOR PRIVATE FUNCTIONS WITH FILE LEVEL SCOPE
@@ -38,6 +41,13 @@ static void timer_isr(void);
  ******************************************************************************/
 
 static volatile ticks_t timer_main_counter, timer_mark;
+
+typedef struct {
+	callback_t callback;
+	ticks_t timeout;
+} timer_t;
+
+static timer_t timers[TIMER_MAX_TIMERS];
 
 /*******************************************************************************
  *******************************************************************************
@@ -57,7 +67,7 @@ void timerInit(void)
     yaInit = true;
 }
 
-ticks_t timerStart(ticks_t ticks)
+ticks_t timerStart(ticks_t ticks, callback_t callback)
 {
     ticks_t now_copy;
     
@@ -69,6 +79,16 @@ ticks_t timerStart(ticks_t ticks)
     //enable_interrupts();
 
     now_copy += ticks;
+
+	for (uint8_t i = 0; i < TIMER_MAX_TIMERS; i++)
+	{
+		if (timers[i].callback == NULL)
+		{
+			timers[i].callback = callback;
+			timers[i].timeout = now_copy;
+			break;
+		}
+	}
 
     return now_copy;
 }
@@ -85,11 +105,23 @@ bool timerExpired(ticks_t timeout)
     return (now_copy >= 0);
 }
 
+void timerStop(callback_t callback)
+{
+	for (uint8_t i = 0; i < TIMER_MAX_TIMERS; i++)
+	{
+		if (timers[i].callback == callback)
+		{
+			timers[i].callback = NULL;
+			break;
+		}
+	}
+}
+
 void timerDelay(ticks_t ticks)
 {
     ticks_t tim;
     
-    tim = timerStart(ticks);
+    tim = timerStart(ticks, NULL);
     while (!timerExpired(tim))
     {
         // wait...
@@ -114,6 +146,15 @@ ticks_t timerCounter(void)
 static void timer_isr(void)
 {
     ++timer_main_counter; // update main counter
+
+	for (uint8_t i = 0; i < TIMER_MAX_TIMERS; i++)
+	{
+		if (timers[i].callback != NULL && (timer_main_counter >= timers[i].timeout))
+		{
+			timers[i].callback();
+			timers[i].callback = NULL;
+		}
+	}
 }
 
 /******************************************************************************/

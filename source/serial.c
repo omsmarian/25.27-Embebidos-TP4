@@ -13,7 +13,7 @@
 
 #include "board.h"
 #include "uart.h"
-#include "pisr.h"
+//#include "pisr.h"
 #include "cqueue.h"
 #include "timer.h"
 #include "serial.h"
@@ -36,7 +36,8 @@
 
 bool serialInit (void)
 {
-	uart_cfg_t config = {9600, UART_MODE_8,
+	uart_cfg_t config = {SERIAL_DEFAULT_BAUDRATE,
+						 UART_MODE_8,
 						 UART_PARITY_NONE,
 						 UART_STOPS_1,
 						 UART_RX_TX_ENABLED,
@@ -67,6 +68,11 @@ bool serialWriteStatus (void)
 bool serialReadStatus (void)
 {
 	return uartIsRxMsg(SERIAL_PORT);
+}
+
+uint8_t serialReadStatusLength (void)
+{
+	return uartGetRxMsgLength(SERIAL_PORT);
 }
 
 /******************************************************************************/
