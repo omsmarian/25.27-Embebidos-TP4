@@ -69,7 +69,7 @@ void init_fsl(OS_Q *_msgQueue)
 	add_user("00000003", "3333", 2, 0);
 	add_user("00000004", "4444", 2, 1);
 	add_user("00000005", "5555", 3, 0);
-	add_user("00000006", "6666", 3, 1);
+	add_user("03192206", "1234", 3, 1);
 //	floor_count[3] = floor_count[2] = floor_count[1] = 2;
 }
 
@@ -332,6 +332,7 @@ void read_id(char *id)
 {
 	int read_successful = 0;
 
+	MagCardClearData();
 	while (!read_successful)
 	{
 		// manage_access();

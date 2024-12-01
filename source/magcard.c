@@ -29,7 +29,7 @@
 #define FIELD_SEPARATOR			0xD
 #define END_SENTINEL			0xF
 
-#define HARD_CLEAR				0 // Clearing data is optional scince it is overwritten
+#define HARD_CLEAR				1 // Clearing data is optional scince it is overwritten
 #define DEBUG_TP				1 // Debugging Test Points to measure ISR time
 
 /*******************************************************************************
@@ -112,7 +112,7 @@ bool							MagCardInit					(OS_SEM *_sem) { sem = _sem;
 																			 return !FSM(INIT); } // OFF: 0
 // bool							MagCardGetStatus			(void) { return FSM(GET_STATUS) == DATA_READY; }
 // void							MagCardUpdate				(void) { FSM(UPDATE); }
-uint64_t						MagCardGetCardNumber		(void) { return __CharsToNum__(magCard.data.PAN, magCard.data.PAN_length); }
+uint64_t						MagCardGetCardNumber		(void) { return __CharsToNum__(magCardBuffer.data.PAN, magCardBuffer.data.PAN_length); }
 void							MagCardClearData			(void) { FSM(CLEAR_DATA); }
 
 // Complete Data Access ////////////////////////////////////////////////////////
@@ -154,7 +154,6 @@ static MagCardState_t FSM (MagCardEvent_t event) // Main MagCard Event Handler (
 		case READING:
 				 if (event == CLOCK_FallingEdge)	{ ReadData(); }
 			else if (event == ENABLE_RisingEdge)	{ state = (ProcessData() ? DATA_READY : IDLE); } // Process data outside the ISR
-			break;
 
 			if (state == DATA_READY)
 				OSSemPost(sem, OS_OPT_POST_1, &os_err);
@@ -254,7 +253,7 @@ static bool ProcessData (void)
 	if (magCard.data.PAN_length <= MAX_PAN_LENGTH && i < MAX_CHARS && CheckParity())
 	{
 		ParseData();
-		MagCardCpy(&magCardBuffer, &magCard); // Not really necessary (and time efficient), but safer
+		MagCardCpy(&magCardBuffer, &magCard); // Not really necessary (or time efficient), but safer
 		status = true;
 	}
 	else
@@ -306,7 +305,7 @@ static void MagCardCpy (MagCard_t * dest, MagCard_t * src)
 {
 	dest->data.PAN_length = src->data.PAN_length;
 
-	__ArrayCpy__(dest->data.PAN,						src->data.PAN,						src->data.PAN_length);
+	__ArrayCpy__(dest->data.PAN,						src->data.PAN,						MAX_PAN_LENGTH);
 	__ArrayCpy__(dest->additional_data.expiration,		src->additional_data.expiration,	EXPIRATION_LENGTH);
 	__ArrayCpy__(dest->additional_data.service_code,	src->additional_data.service_code,	SERVICE_CODE_LENGTH);
 	__ArrayCpy__(dest->discretionary_data.PVKI,			src->discretionary_data.PVKI,		PVKI_LENGTH);
@@ -322,7 +321,7 @@ static bool MagCardClr (void)
 	for (uint8_t i = 0; i < MAX_TRACK_SIZE; i++)
 		track2[i] = 0;
 
-	MagCardCpy(&magCardBuffer, &magCard);
+	MagCardCpy(&magCardBuffer, &magCardClr);
 #endif // HARD_CLEAR
 	return 0; // Clear successful
 }
