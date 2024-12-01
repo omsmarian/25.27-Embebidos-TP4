@@ -24,6 +24,5 @@ void add_user(char *id, char *password);
 void delete_user(char *id, char *password);
 void change_password(char *id, char *old_password, char *new_password);
 bool access_system(char *id, char *password);
-int return_password_length (char* id);
 
 #endif /* _USERS_H_ */

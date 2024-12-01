@@ -82,6 +82,12 @@
 #define UART5_RX_PIN			PORTNUM2PIN(PE, 9)	// PTD8
 #define UART5_TX_PIN			PORTNUM2PIN(PE, 8)	// PTC9
 
+// FXOS8700CQ Sensor
+#define FXOS8700CQ_I2C_SCL_PIN	PORTNUM2PIN(PE, 24)	// PTB0
+#define FXOS8700CQ_I2C_SDA_PIN	PORTNUM2PIN(PE, 25)	// PTB1
+#define FXOS8700CQ_INT1_PIN		PORTNUM2PIN(PC, 6)	// PTC6
+#define FXOS8700CQ_INT2_PIN		PORTNUM2PIN(PC, 13)	// PTC6
+
 /*******************************************************************************
  ******************************************************************************/
 

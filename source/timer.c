@@ -1,53 +1,43 @@
 /***************************************************************************//**
-  @file     LEDs.c
-  @brief    LEDs driver
-  @author   Group 4
+  @file     timer.c
+  @brief    Timer driver. Simple implementation, support multiple timers
+  @author   Group 4: - Oms, Mariano
+                     - Solari Raigoso, Agustín
+                     - Wickham, Tomás
+                     - Vieira, Valentin Ulises
+  @note     Based on the work of Nicolás Magliola
  ******************************************************************************/
 
 /*******************************************************************************
  * INCLUDE HEADER FILES
  ******************************************************************************/
 
-#include "LEDs.h"
-#include "board.h"
-#include "gpio.h"
+#include "timer.h"
 //#include "pisr.h"
-#include "PIT.h"
-
+#include "pit.h"
 
 /*******************************************************************************
  * CONSTANT AND MACRO DEFINITIONS USING #DEFINE
  ******************************************************************************/
 
-#define NO_LED 0b00
-#define LED1 0b11
-#define LED2 0b01
-#define LED3 0b10
+#define DEVELOPMENT_MODE		1
 
+#define TIMER_FREQUENCY_HZ		(1000000 / TIMER_TICK_US)
 
 /*******************************************************************************
  * FUNCTION PROTOTYPES FOR PRIVATE FUNCTIONS WITH FILE LEVEL SCOPE
  ******************************************************************************/
 
 /**
- * @brief Refresh the LEDS
+ * @brief Periodic service
  */
-void LEDS_refresh(void);
-
-/**
- * @brief Turns on only one LED
- * @param ledNumber which LED to turn on
- */
-void LEDS_On(uint8_t ledNumber);
-
+static void timer_isr(void);
 
 /*******************************************************************************
  * STATIC VARIABLES AND CONST VARIABLES WITH FILE LEVEL SCOPE
  ******************************************************************************/
 
-static uint8_t ledStatus;
-static uint8_t counter;
-
+static volatile ticks_t timer_main_counter, timer_mark;
 
 /*******************************************************************************
  *******************************************************************************
@@ -55,45 +45,65 @@ static uint8_t counter;
  *******************************************************************************
  ******************************************************************************/
 
-bool LEDS_Init(void)
+void timerInit(void)
 {
-    gpioWrite(PIN_LED_EXT_STATUS0, LOW);
-    gpioWrite(PIN_LED_EXT_STATUS0, LOW);
-    gpioMode(PIN_LED_EXT_STATUS0, OUTPUT);
-    gpioMode(PIN_LED_EXT_STATUS1, OUTPUT);
+    static bool yaInit = false;
+    if (yaInit)
+        return;
+
+    // pisrRegister(timer_isr, PISR_FREQUENCY_HZ / TIMER_FREQUENCY_HZ); // init peripheral
+	PIT_Init(PIT0_ID, timer_isr, TIMER_FREQUENCY_HZ);
     
-//    pisrRegister(LEDS_refresh, 100);    // 7 ms
-	PIT_Init(PIT0_ID, LEDS_refresh, 200);
-
-    return true;
+    yaInit = true;
 }
 
-void LEDS_Set(uint8_t num)
+ticks_t timerStart(ticks_t ticks)
 {
-    if((num <= 7) && (num >= 0))
-        ledStatus = num;
-    else
-        ledStatus = 0b000;
-	if(num == 0b000)
-	{
-		gpioWrite(PIN_LED_EXT_STATUS0, LOW);
-		gpioWrite(PIN_LED_EXT_STATUS1, LOW);
-	}
-	else if (num == 0b001) {
-		gpioWrite(PIN_LED_EXT_STATUS0, LOW);
-		gpioWrite(PIN_LED_EXT_STATUS1, HIGH);
-	} else if (num == 0b010) {
-		gpioWrite(PIN_LED_EXT_STATUS0, HIGH);
-		gpioWrite(PIN_LED_EXT_STATUS1, LOW);
-	} else if (num == 0b100){
-		gpioWrite(PIN_LED_EXT_STATUS0, HIGH);
-		gpioWrite(PIN_LED_EXT_STATUS1, HIGH);
-	} else {
-		gpioWrite(PIN_LED_EXT_STATUS0, LOW);
-		gpioWrite(PIN_LED_EXT_STATUS1, LOW);
-	}
+    ticks_t now_copy;
+    
+    if (ticks < 0)
+        ticks = 0; // truncate min wait time
+    
+    //disable_interrupts();
+    now_copy = timer_main_counter; // esta copia debe ser atomic!!
+    //enable_interrupts();
+
+    now_copy += ticks;
+
+    return now_copy;
 }
 
+bool timerExpired(ticks_t timeout)
+{
+    ticks_t now_copy;
+
+    //disable_interrupts();
+    now_copy = timer_main_counter; // esta copia debe ser atomic!!
+    //enable_interrupts();
+
+    now_copy -= timeout;
+    return (now_copy >= 0);
+}
+
+void timerDelay(ticks_t ticks)
+{
+    ticks_t tim;
+    
+    tim = timerStart(ticks);
+    while (!timerExpired(tim))
+    {
+        // wait...
+    }
+}
+
+ticks_t timerCounter(void)
+{
+	ticks_t diff = timer_main_counter-timer_mark;
+	if (diff > 2)
+		timer_mark = diff; // Dummy action to be able to set a breakpoint
+	timer_mark = timer_main_counter;
+	return diff * TIMER_TICK_US;
+}
 
 /*******************************************************************************
  *******************************************************************************
@@ -101,25 +111,9 @@ void LEDS_Set(uint8_t num)
  *******************************************************************************
  ******************************************************************************/
 
-void LEDS_On(uint8_t ledNumber)
+static void timer_isr(void)
 {
-    gpioWrite(PIN_LED_EXT_STATUS0, ledNumber & 0b01);
-    gpioWrite(PIN_LED_EXT_STATUS1, ledNumber & 0b10);
+    ++timer_main_counter; // update main counter
 }
-
-void LEDS_refresh(void)
-{
-    if((ledStatus & 0b100) && (counter == 0))
-        LEDS_On(LED3);
-    else if((ledStatus & 0b010) && (counter == 1))
-        LEDS_On(LED2);
-    else if((ledStatus & 0b001) && (counter == 2))
-        LEDS_On(LED1);
-    else
-        LEDS_On(NO_LED);
-    counter++;
-    if (counter == 3) counter = 0;
-}
-
 
 /******************************************************************************/

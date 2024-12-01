@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <string.h>
 #include "fsl.h"
-#include "pit.h"
-#include "timer.h"
 
 static volatile char key_pressed = 0;
 static volatile int key_flag = 0;
@@ -16,7 +14,7 @@ static OS_PEND_DATA pend_data_table[3];
 static OS_OBJ_QTY pended_count;
 static OS_SEM *pended_sem;
 static OS_ERR err;
-static ticks_t timer_access, timer_error;
+static OS_TMR timer_access, timer_error;
 
 void change_brightness_call(void);
 void add_user_call(void);
@@ -26,7 +24,6 @@ void access_system_call(void);
 void print_menu(enum states_fsl state);
 void print_code_on_display(char *id);
 void manage_access(void);
-void manage_error(void);
 void read_password(char *password);
 void read_id(char *id);
 
@@ -36,7 +33,7 @@ void init_fsl()
 	DisplayInit();
 	MagCardInit(&magcard_sem);
 	LEDS_Init();
-	timerInit();
+	// timerInit();
 
 	state = ADD_USER;
 	print_menu(state);
@@ -45,28 +42,17 @@ void init_fsl()
 	gpioMode(PIN_TP_PER, OUTPUT);
 	gpioMode(PIN_TP_DED, OUTPUT);
 
-	OSSemCreate(&encoder_sem, "Encoder Semaphore", 0, &err);
-	OSSemCreate(&magcard_sem, "MagCard Semaphore", 0, &err);
-	// OSSemCreate(&error_sem, "Error Semaphore", 0, &err);
-
-	pend_data_table[0].PendObjPtr = (OS_PEND_OBJ*)&encoder_sem;
-	pend_data_table[1].PendObjPtr = (OS_PEND_OBJ*)&magcard_sem;
-	// pend_data_table[2].PendObjPtr = (OS_PEND_OBJ*)&error_sem;
-
-	PIT_Init(PIT0_ID, manage_access, 10);
+	OSSemCreate(&error_sem, "Error Semaphore", 0, &err);
 }
 
 void update_fsl()
 {
-// 	OSPendMulti(pend_data_table, 3, 0, OS_OPT_PEND_BLOCKING, &err);
-// 	update_menu(); // Update the menu
-// 	manage_access(); //Manage access
-// }
+	update_menu(); // Update the menu
+	manage_access(); //Manage access
+}
 
-// void update_menu()
-// {
-	OSSemPend(&encoder_sem, 0, OS_OPT_PEND_BLOCKING, NULL, &err);
-
+void update_menu()
+{
 	int key = read_key();
 
 	if (key == 1) // LEFT
@@ -205,7 +191,7 @@ bool read_from_encoder(char *id)
 	else if(key == 2) //GO BACK IN MENU
 	{
 		return_flag = true;
-		// OSSemPost(&error_sem, OS_OPT_POST_1, &err);
+		OSSemPost(&error_sem, OS_OPT_POST_1, &err);
 		digit_index = 0;
 		current_digit = 0;
 		return false;
@@ -253,9 +239,8 @@ int8_t change_brightness(void)
 
 	while (success != 2)
 	{
-		OSSemPend(&encoder_sem, 0, OS_OPT_PEND_BLOCKING, NULL, &err);
-
 		key = read_key();
+		
 		if (key == 1) { //LEFT
 			brightness = (uint8_t)DisplaySetBrightness(-1);
 
@@ -317,11 +302,15 @@ void read_id(char *id)
 
 	while (!read_successful)
 	{
-		// manage_access();
+		manage_access();
 
-		OSPendMulti(pend_data_table, 2, 0, OS_OPT_PEND_BLOCKING, &err);
+		pend_data_table[0].PendObjPtr = (OS_PEND_OBJ*)&encoder_sem;
+		pend_data_table[1].PendObjPtr = (OS_PEND_OBJ*)&magcard_sem;
+		pend_data_table[2].PendObjPtr = (OS_PEND_OBJ*)&error_sem;
 
-		if (error_flag)
+		OSPendMulti(pend_data_table, 3, 0, OS_OPT_PEND_BLOCKING, &err);
+
+		if (pend_data_table[2].RdyObjPtr == (OS_PEND_OBJ*)&error_sem)
 			break;
 		else if (pend_data_table[0].RdyObjPtr == (OS_PEND_OBJ*)&encoder_sem)
 			read_successful = read_from_encoder(id);
@@ -344,11 +333,9 @@ int type_of_pasword(void)
 
 	while(1)
 	{
-		// manage_access();
-
-		OSSemPend(&encoder_sem, 0, OS_OPT_PEND_BLOCKING, NULL, &err);
-
+		manage_access();
 		int key = read_key();
+
 		if(key == 1 || key == 3) //LEFT or RIGHT
 		{
 			digit = (digit == 4) ? 5 : 4;
@@ -363,7 +350,7 @@ int type_of_pasword(void)
 		else if (key == 2) //Go back
 		{
 			return_flag = true;
-			// OSSemPost(&error_sem, OS_OPT_POST_1, &err);
+			OSSemPost(&error_sem, OS_OPT_POST_1, &err);
 			return 0;
 		}
 	}
@@ -384,10 +371,7 @@ void read_password_without_length(char * id, char *password)
 
 	while (digit_index < digits)
 	{
-		// manage_access();
-
-		OSSemPend(&encoder_sem, 0, OS_OPT_PEND_BLOCKING, NULL, &err);
-
+		manage_access();
 		int key = read_key();
 		if (key == 1) { //LEFT
 			current_digit = (current_digit == 0) ? 9 : current_digit - 1;
@@ -427,7 +411,7 @@ void read_password_without_length(char * id, char *password)
 		else if (key == 2) //Go back
 		{
 				return_flag = true;
-				// OSSemPost(&error_sem, OS_OPT_POST_1, &err);
+				OSSemPost(&error_sem, OS_OPT_POST_1, &err);
 				digit_index = 0;
 				current_digit = 0;
 				break;
@@ -459,10 +443,7 @@ void read_password(char *password)
 
 	while (digit_index < digits)
 	{
-		// manage_access();
-
-		OSSemPend(&encoder_sem, 0, OS_OPT_PEND_BLOCKING, NULL, &err);
-
+		manage_access();
 		key = read_key();
 		if (key == 1) { //LEFT
 			current_digit = (current_digit == 0) ? 9 : current_digit - 1;
@@ -496,7 +477,7 @@ void read_password(char *password)
 		else if (key == 2) //Go back
 		{
 				return_flag = true;
-				// OSSemPost(&error_sem, OS_OPT_POST_1, &err);
+				OSSemPost(&error_sem, OS_OPT_POST_1, &err);
 				digit_index = 0;
 				current_digit = 0;
 				break;
@@ -668,13 +649,8 @@ void access_system_call(void)
 //			LEDS_Set(ONLY_CENTER);
 		}
 
-		timer_access = timerStart(TIMER_MS2TICKS(5000));
-//		OSTmrCreate(&timer_access, "Access Timer", 0, 5000, OS_OPT_TMR_ONE_SHOT, NULL, NULL, &err);
-//		OSTmrStart(&timer_access, &err);
-
-		LEDS_Set(0b001);
-		LEDS_Set(0b010);
-		LEDS_Set(0b100);
+		OSTmrCreate(&timer_access, "Access Timer", 0, 5000, OS_OPT_TMR_ONE_SHOT, NULL, NULL, &err);
+		OSTmrStart(&timer_access, &err);
 	}
 	else
 	{
@@ -689,11 +665,8 @@ void access_system_call(void)
 			// timer_error = timerStart(TIMER_MS2TICKS(5000));
 		}
 
-		timer_error = timerStart(TIMER_MS2TICKS(5000));
-//		OSTmrCreate(&timer_error, "Error Timer", 0, 5000, OS_OPT_TMR_ONE_SHOT, NULL, NULL, &err);
-//		OSTmrStart(&timer_error, &err);
-
-		LEDS_Set(0b010);
+		OSTmrCreate(&timer_error, "Error Timer", 0, 5000, OS_OPT_TMR_ONE_SHOT, NULL, NULL, &err);
+		OSTmrStart(&timer_error, &err);
 	}
 
 //	print_menu(state);
@@ -701,51 +674,27 @@ void access_system_call(void)
 
 void manage_access(void)
 {
-	bool timer_access_expired = timerExpired(timer_access);
-	bool timer_error_expired = timerExpired(timer_error);
-
- 	if (timer_access_expired)
-// 	if (OSTmrRemainGet(&timer_access, &err))
- 	{
- 		access_flag = false;
- 		// LEDS_Set(NOTHING);
-		gpioWrite(PIN_LED_GREEN, HIGH);
- 	}
- 	else
- 	{
- 		// LEDS_Set(0b001);
- 		// LEDS_Set(0b010);
- 		// LEDS_Set(0b100);
-		gpioWrite(PIN_LED_GREEN, LOW);
- 	}
-
- 	if (timer_error_expired)
-// 	if (OSTmrRemainGet(&timer_error, &err))
- 	{
- 		error_flag = false;
- 		// LEDS_Set(NOTHING);
-		gpioWrite(PIN_LED_RED, HIGH);
- 	}
- 	else
- 	{
- 		// LEDS_Set(0b010);
-		gpioWrite(PIN_LED_RED, LOW);
- 	}
-
-	if (timer_access_expired && timer_error_expired)
-		gpioWrite(PIN_LED_BLUE, LOW);
+	// if (timerExpired(timer_access))
+	if (OSTmrRemainGet(&timer_access, &err))
+	{
+		access_flag = false;
+		LEDS_Set(NOTHING);
+	}
 	else
-		gpioWrite(PIN_LED_BLUE, HIGH);
-}
+	{
+		LEDS_Set(0b001);
+		LEDS_Set(0b010);
+		LEDS_Set(0b100);
+	}
 
-//void manage_access(void)
-//{
-//	access_flag = false;
-//	LEDS_Set(NOTHING);
-//}
-//
-//void manage_error(void)
-//{
-//	error_flag = false;
-//	LEDS_Set(NOTHING);
-//}
+	// if (timerExpired(timer_error))
+	if (OSTmrRemainGet(&timer_error, &err))
+	{
+		error_flag = false;
+		LEDS_Set(NOTHING);
+	}
+	else
+	{
+		LEDS_Set(0b010);
+	}
+}

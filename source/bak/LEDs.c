@@ -12,7 +12,6 @@
 #include "board.h"
 #include "gpio.h"
 //#include "pisr.h"
-#include "PIT.h"
 
 
 /*******************************************************************************
@@ -63,17 +62,16 @@ bool LEDS_Init(void)
     gpioMode(PIN_LED_EXT_STATUS1, OUTPUT);
     
 //    pisrRegister(LEDS_refresh, 100);    // 7 ms
-	PIT_Init(PIT0_ID, LEDS_refresh, 200);
 
     return true;
 }
 
 void LEDS_Set(uint8_t num)
 {
-    if((num <= 7) && (num >= 0))
-        ledStatus = num;
-    else
-        ledStatus = 0b000;
+//    if((num <= 7) && (num >= 0))
+//        ledStatus = num;
+//    else
+//        ledStatus = 0b000;
 	if(num == 0b000)
 	{
 		gpioWrite(PIN_LED_EXT_STATUS0, LOW);
@@ -118,7 +116,6 @@ void LEDS_refresh(void)
     else
         LEDS_On(NO_LED);
     counter++;
-    if (counter == 3) counter = 0;
 }
 
 

@@ -21,7 +21,7 @@
 #define DEVELOPMENT_MODE    1
 #define SPIN_FREQ 1000U
 #define CLICK_FREQ 20U
-#define LONG_CLICK_THRESHOLD 10 // Define el umbral para el clic largo
+#define LONG_CLICK_THRESHOLD 10
 #define DOUBLE_CLICK_THRESHOLD 15 // Define el umbral para el doble clic
 #define MIN_TIME_BETWEEN_CLICKS 5 // Define el tiempo mínimo entre clics para un doble clic
 

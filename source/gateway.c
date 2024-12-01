@@ -25,27 +25,27 @@ void send_response(uint8_t response);
 bool receive_command(uint8_t *command, Data *data);
 void keep_alive();
 
-int main() {
-	uint8_t command;
-	Data data;
-
-	while (1) {
-		if (receive_command(&command, &data)) {
-			if (command == SEND_DATA_CMD) {
-				if (send_data(data)) {
-					send_response(SEND_DATA_OK);
-				} else {
-					send_response(SEND_DATA_FAIL);
-				}
-			} else if (command == KEEP_ALIVE_CMD) {
-				keep_alive();
-			}
-		}
-		sleep(1); // Delay to avoid flooding ThingSpeak
-	}
-
-	return 0;
-}
+//int main() {
+//	uint8_t command;
+//	Data data;
+//
+//	while (1) {
+//		if (receive_command(&command, &data)) {
+//			if (command == SEND_DATA_CMD) {
+//				if (send_data(data)) {
+//					send_response(SEND_DATA_OK);
+//				} else {
+//					send_response(SEND_DATA_FAIL);
+//				}
+//			} else if (command == KEEP_ALIVE_CMD) {
+//				keep_alive();
+//			}
+//		}
+//		sleep(1); // Delay to avoid flooding ThingSpeak
+//	}
+//
+//	return 0;
+//}
 
 bool send_data(Data data) {
 	// Simulate sending data to ThingSpeak

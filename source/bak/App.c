@@ -16,7 +16,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <os.h>
-#include <uart.h>
 
 #include "board.h"
 #include "hardware.h"
@@ -28,17 +27,13 @@
 #include "magcard.h"
 #include "fsl.h"
 
-#include "gpio.h"
-#include "board.h"
-#include "pit.h"
-
 /*******************************************************************************
  * CONSTANT AND MACRO DEFINITIONS USING #DEFINE
  ******************************************************************************/
 
 /* Task Start */
 #define TASKSTART_STK_SIZE 		512u
-#define TASKSTART_PRIO 			3u
+#define TASKSTART_PRIO 			2u
 static OS_TCB TaskStartTCB;
 static CPU_STK TaskStartStk[TASKSTART_STK_SIZE];
 
@@ -50,11 +45,11 @@ static CPU_STK TaskStartStk[TASKSTART_STK_SIZE];
 // static CPU_STK TaskEncoderStk[TASKE_STK_SIZE];
 
 /* Task MagCard */
-// #define TASKMC_STK_SIZE			256u
-// #define TASKMC_STK_SIZE_LIMIT	(TASKMC_STK_SIZE / 10u)
-// #define TASKMC_PRIO              3u
-// static OS_TCB TaskMagCardTCB;
-// static CPU_STK TaskMagCardStk[TASKMC_STK_SIZE];
+#define TASKMC_STK_SIZE			256u
+#define TASKMC_STK_SIZE_LIMIT	(TASKMC_STK_SIZE / 10u)
+#define TASKMC_PRIO              3u
+static OS_TCB TaskMagCardTCB;
+static CPU_STK TaskMagCardStk[TASKMC_STK_SIZE];
 
 /* Task Gateway */
 #define TASKG_STK_SIZE			256u
@@ -64,7 +59,7 @@ static OS_TCB TaskGatewayTCB;
 static CPU_STK TaskGatewayStk[TASKG_STK_SIZE];
 
 /* Semaphores */
-static OS_SEM semGateway;
+static OS_SEM semEncoder, semMagCard, semGateway;
 static uint64_t card;
 
 /*******************************************************************************
@@ -72,17 +67,12 @@ static uint64_t card;
  ******************************************************************************/
 
 static void TaskStart(void *p_arg);
-// static void TASK_Encoder(void *p_arg);
-// static void TASK_MagCard(void *p_arg);
- static void TASK_Gateway(void *p_arg);
-static void TmrEncoder1Callback(void);
-static void TmrEncoder2Callback(void);
-// static void TmrMagCardCallback(OS_TMR *p_tmr, void *p_arg);
-static void TmrGatewayCallback(void);
-static void TmrDisplayCallback(void);
-static void TmrUARTCallback(void);
-// static void TmrBlinkyCallback(OS_TMR *p_tmr, void *p_arg);
-static void TmrBlinkyCallback(void);
+static void TASK_MagCard(void *p_arg);
+static void TmrEncoder1Callback(OS_TMR *p_tmr, void *p_arg);
+static void TmrEncoder2Callback(OS_TMR *p_tmr, void *p_arg);
+static void TmrMagCardCallback(OS_TMR *p_tmr, void *p_arg);
+static void TmrGatewayCallback(OS_TMR *p_tmr, void *p_arg);
+static void TmrDisplayCallback(OS_TMR *p_tmr, void *p_arg);
 
 /*******************************************************************************
  * STATIC VARIABLES AND CONST VARIABLES WITH FILE LEVEL SCOPE
@@ -139,13 +129,6 @@ void App_Init (void)
 	init_fsl();
 	// serialInit();
 	// timerInit();
-	PIT_Init(PIT0_ID, TmrBlinkyCallback, 1);
-	PIT_Init(PIT0_ID, TmrEncoder1Callback, 1000);
-	PIT_Init(PIT0_ID, TmrEncoder2Callback, 20);
-//	 PIT_Init(PIT3_ID, TmrMagCardCallback, 1);
-//	 PIT_Init(PIT3_ID, TmrGatewayCallback, 1);
-	PIT_Init(PIT0_ID, TmrDisplayCallback, 7500);
-	PIT_Init(PIT0_ID, TmrUARTCallback, 200);
 }
 
 /**
@@ -180,8 +163,8 @@ static void TaskStart(void *p_arg)
 #endif
 
     /* Create semaphores */
-	// OSSemCreate(&semEncoder, "Encoder Semaphore", 0, &os_err);
-	// OSSemCreate(&semMagCard, "MagCard Semaphore", 0, &os_err);
+	OSSemCreate(&semEncoder, "Encoder Semaphore", 0, &os_err);
+	OSSemCreate(&semMagCard, "MagCard Semaphore", 0, &os_err);
 	OSSemCreate(&semGateway, "Gateway Semaphore", 0, &os_err);
 
 	/* Create Encoder Timer */
@@ -189,7 +172,7 @@ static void TaskStart(void *p_arg)
 	OSTmrCreate(&TmrEncoder1,
 				"Encoder1 Timer",
 				 0u,
-				 1u,
+				 100u,
 				 OS_OPT_TMR_PERIODIC,
 				(OS_TMR_CALLBACK_PTR)TmrEncoder1Callback,
 				 0x0,
@@ -198,29 +181,29 @@ static void TaskStart(void *p_arg)
 	OSTmrCreate(&TmrEncoder2,
 				"Encoder2 Timer",
 				 0u,
-				 1u,
+				 100u,
 				 OS_OPT_TMR_PERIODIC,
-				(OS_TMR_CALLBACK_PTR)TmrEncoder2Callback,
+				(OS_TMR_CALLBACK_PTR)TmrEncoder1Callback,
 				 0x0,
 				&os_err);
 
 	/* Create MagCard Timer */
-	// OS_TMR TmrMagCard;
-	// OSTmrCreate(&TmrMagCard,
-	// 			"MagCard Timer",
-	// 			 0u,
-	// 			 1000u,
-	// 			 OS_OPT_TMR_PERIODIC,
-	// 			(OS_TMR_CALLBACK_PTR)TmrMagCardCallback,
-	// 			 0x0,
-	// 			&os_err);
+	OS_TMR TmrMagCard;
+	OSTmrCreate(&TmrMagCard,
+				"MagCard Timer",
+				 0u,
+				 1000u,
+				 OS_OPT_TMR_PERIODIC,
+				(OS_TMR_CALLBACK_PTR)TmrMagCardCallback,
+				 0x0,
+				&os_err);
 
 	/* Create Gateway Timer */
 	OS_TMR TmrGateway;
 	OSTmrCreate(&TmrGateway,
 				"Gateway Timer",
 				 0u,
-				 10000u,
+				 1000u,
 				 OS_OPT_TMR_PERIODIC,
 				(OS_TMR_CALLBACK_PTR)TmrGatewayCallback,
 				 0x0,
@@ -231,33 +214,11 @@ static void TaskStart(void *p_arg)
 	OSTmrCreate(&TmrDisplay,
 				"Display Timer",
 				 0u,
-				 1u,
+				 100u,
 				 OS_OPT_TMR_PERIODIC,
 				(OS_TMR_CALLBACK_PTR)TmrDisplayCallback,
 				 0x0,
 				&os_err);
-
-	/* Create UART Timer */
-	OS_TMR TmrUART;
-	OSTmrCreate(&TmrUART,
-				"UART Timer",
-				 0u,
-				 1u,
-				 OS_OPT_TMR_PERIODIC,
-				(OS_TMR_CALLBACK_PTR)TmrUARTCallback,
-				 0x0,
-				&os_err);
-
-	/* Create a Timer for Blinky */
-	// OS_TMR TmrBlinky;
-	// OSTmrCreate(&TmrBlinky,
-	// 			"Blinky Timer",
-	// 			 0u,
-	// 			 333u,
-	// 			 OS_OPT_TMR_PERIODIC,
-	// 			(OS_TMR_CALLBACK_PTR)TmrBlinkyCallback,
-	// 			 0x0,
-	// 			&os_err);
 
     /* Create Encoder Task */
     // OSTaskCreate(&TaskEncoderTCB, 		//tcb
@@ -290,68 +251,59 @@ static void TaskStart(void *p_arg)
 	// 			 &os_err);
 
 	/* Create Gateway Task */
-	OSTaskCreate(&TaskGatewayTCB,         // tcb
-				 "Task Gateway",          // name
-				  TASK_Gateway,           // func
-				  0u,                     // arg
-				  TASKG_PRIO,             // prio
-				 &TaskGatewayStk[0u],     // stack
-				  TASKG_STK_SIZE_LIMIT,   // stack limit
-				  TASKG_STK_SIZE,         // stack size
-				  0u,
-				  0u,
-				  0u,
-				 (OS_OPT_TASK_STK_CHK | OS_OPT_TASK_STK_CLR),
-				 &os_err);
-
-	gpioMode(PIN_LED_RED, OUTPUT);
-	gpioMode(PIN_LED_GREEN, OUTPUT);
-	gpioMode(PIN_LED_BLUE, OUTPUT);
-	gpioWrite(PIN_LED_RED, HIGH);
-	gpioWrite(PIN_LED_GREEN, HIGH);
-	gpioWrite(PIN_LED_BLUE, HIGH);
+	// OSTaskCreate(&TaskGatewayTCB,         // tcb
+	// 			 "Task Gateway",          // name
+	// 			  TASK_Gateway,           // func
+	// 			  0u,                     // arg
+	// 			  TASKG_PRIO,             // prio
+	// 			 &TaskGatewayStk[0u],     // stack
+	// 			  TASKG_STK_SIZE_LIMIT,   // stack limit
+	// 			  TASKG_STK_SIZE,         // stack size
+	// 			  0u,
+	// 			  0u,
+	// 			  0u,
+	// 			 (OS_OPT_TASK_STK_CHK | OS_OPT_TASK_STK_CLR),
+	// 			 &os_err);
 
 	/* Start Timers */
-//	OSTmrStart(&TmrEncoder1,	&os_err);
-//	OSTmrStart(&TmrEncoder2,	&os_err);
-//	OSTmrStart(&TmrMagCard,		&os_err);
-//	OSTmrStart(&TmrGateway,		&os_err);
-//	OSTmrStart(&TmrDisplay,		&os_err);
-//	OSTmrStart(&TmrUART,		&os_err);
-//	OSTmrStart(&TmrBlinky,		&os_err);
+	OSTmrStart(&TmrEncoder1, &os_err);
+	OSTmrStart(&TmrEncoder2, &os_err);
+	OSTmrStart(&TmrMagCard, &os_err);
+	OSTmrStart(&TmrGateway, &os_err);
+	OSTmrStart(&TmrDisplay, &os_err);
 
     while (1)
 	{
-		// OSTimeDlyHMSM(0u, 0u, 0u, 500u, OS_OPT_TIME_HMSM_STRICT, &os_err);
+		OSTimeDlyHMSM(0u, 0u, 0u, 500u, OS_OPT_TIME_HMSM_STRICT, &os_err);
 		update_fsl();
 	}
 }
 
-// static void TASK_Encoder(void *p_arg)
-// {
-//     (void)p_arg;
-//     OS_ERR os_err;
+static void TASK_Encoder(void *p_arg)
+{
+    (void)p_arg;
+    OS_ERR os_err;
 
-//     while (1)
-// 	{
-// 		OSSemPend(&semEncoder, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
-// 		// encoderRead();
-// 		OSSemPost(&semMagCard, OS_OPT_POST_1, &os_err);
-//     }
-// }
+    while (1)
+	{
+		OSSemPend(&semEncoder, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
+		// encoderRead();
+		OSSemPost(&semMagCard, OS_OPT_POST_1, &os_err);
+    }
+}
 
-// static void TASK_MagCard(void *p_arg)
-// {
-//     (void)p_arg;
-//     OS_ERR os_err;
+static void TASK_MagCard(void *p_arg)
+{
+    (void)p_arg;
+    OS_ERR os_err;
 
-//     while (1)
-// 	{
-// 		OSSemPend(&semMagCard, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
-// 		card = MagCardGetCardNumber();
-// 		OSSemPost(&semGateway, OS_OPT_POST_1, &os_err);
-//     }
-// }
+    while (1)
+	{
+		OSSemPend(&semMagCard, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
+		card = MagCardGetCardNumber();
+		OSSemPost(&semGateway, OS_OPT_POST_1, &os_err);
+    }
+}
 
 static void TASK_Gateway(void *p_arg)
 {
@@ -361,51 +313,32 @@ static void TASK_Gateway(void *p_arg)
 	while (1)
 	{
 		OSSemPend(&semGateway, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
-		// gpioToggle(PIN_LED_RED);
 	}
 }
 
-//static void TmrEncoder1Callback(OS_TMR *p_tmr, void *p_arg)
-static void TmrEncoder1Callback(void)
+static void TmrEncoder1Callback(OS_TMR *p_tmr, void *p_arg)
 {
 	directionCallback();
 }
 
-//static void TmrEncoder2Callback(OS_TMR *p_tmr, void *p_arg)
-static void TmrEncoder2Callback(void)
+static void TmrEncoder2Callback(OS_TMR *p_tmr, void *p_arg)
 {
 	switchCallback();
 }
 
-// static void TmrMagCardCallback(OS_TMR *p_tmr, void *p_arg)
-// {
-// 	MagCardUpdate();
-// }
+static void TmrMagCardCallback(OS_TMR *p_tmr, void *p_arg)
+{
+	MagCardUpdate();
+}
 
-//static void TmrGatewayCallback(OS_TMR *p_tmr, void *p_arg)
-static void TmrGatewayCallback(void)
+static void TmrGatewayCallback(OS_TMR *p_tmr, void *p_arg)
 {
 	// gateway();
 }
 
-//static void TmrDisplayCallback(OS_TMR *p_tmr, void *p_arg)
-static void TmrDisplayCallback(void)
+static void TmrDisplayCallback(OS_TMR *p_tmr, void *p_arg)
 {
 	RefreshDisplay();
-}
-
-//static void TmrUARTCallback(OS_TMR *p_tmr, void *p_arg)
-static void TmrUARTCallback(void)
-{
-	handler();
-}
-
-// static void BlinkyCallback(OS_TMR *p_tmr, void *p_arg)
-static void TmrBlinkyCallback(void)
-{
-//	gpioToggle(PIN_LED_RED);
-	OS_ERR os_err;
-	OSSemPost(&semGateway, OS_OPT_POST_1, &os_err);
 }
 
 /******************************************************************************/
