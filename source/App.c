@@ -84,7 +84,7 @@ static CPU_STK TaskKeepAliveStk[TASKKA_STK_SIZE];
 
 /* Semaphores */
 static OS_SEM semGatewayTx, semGatewayRx, semSerialTx, semSerialRx;
-static OS_SEM semTimeout15s, semKeepAlive;
+static OS_SEM semTimeout15s, semKeepAlive, connected;
 
 /* Multiple Pend */
 static OS_PEND_DATA pend_data_table[2];
@@ -99,6 +99,9 @@ static OS_MUTEX gateway_mutex;
 
 /* Timers */
 static ticks_t timeout_15s, timeout_keep_alive;
+
+/* Flags */
+static OS_FLAG_GRP flags;
 
 /*******************************************************************************
  *******************************************************************************
@@ -139,7 +142,7 @@ void App_Init (void)
                  &err);
 
 	PIT_Init(PIT0_ID, TmrBlinkyCallback, 10);
-	PIT_Init(PIT0_ID, TmrEncoder1Callback, 1000);
+	PIT_Init(PIT0_ID, TmrEncoder1Callback, 200);
 	PIT_Init(PIT0_ID, TmrEncoder2Callback, 20);
 	PIT_Init(PIT0_ID, TmrDisplayCallback, 7500);
 	PIT_Init(PIT0_ID, TmrUARTCallback, 200);
@@ -164,6 +167,8 @@ void App_Init (void)
 	uartSetSem(&semSerialRx, &semSerialTx);
 
 	OSMutexCreate(&gateway_mutex, "Gateway Mutex", &err);
+
+	OSFlagCreate(&flags, "Flags", (OS_FLAGS)0, &err);
 }
 
 /**
@@ -259,8 +264,8 @@ static void TaskGateway(void *p_arg)
 
 	while (1)
 	{
-		OSSemPend(&semTimeout15s, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
-		OSSemPend(&semGatewayTx, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
+		OSSemPend(&semTimeout15s, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err); // Wait for timeout between messages
+		OSSemPend(&semGatewayTx, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err); // Wait for message to send
 		msg_received = msg_sent = false;
 
 		uint8_t i = queueSize(queue);
@@ -272,12 +277,13 @@ static void TaskGateway(void *p_arg)
 
 		while (!msg_received)
 		{
+			OSFlagPend(&connected, (OS_FLAGS)1, 0, OS_OPT_PEND_FLAG_SET_ANY + OS_OPT_PEND_FLAG_CONSUME, &ts, &os_err); // Wait for connection
 			OSMutexPend(&gateway_mutex, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
 
 			if (!msg_sent)
 			{
-				OSSemPend(&semSerialTx, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
-				serialWriteData(_msg, i);
+				OSSemPend(&semSerialTx, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err); // Wait for tx buffer to be free
+				serialWriteData(_msg, i); // SendData
 				timeout_15s = timerStart(TIMER_MS2TICKS(15000), Timeout15sCallback);
 				msg_sent = true;
 			}
@@ -286,14 +292,14 @@ static void TaskGateway(void *p_arg)
 			if ((pend_data_table[0].RdyObjPtr == (OS_PEND_OBJ*)&semSerialRx) && (serialReadStatusLength() == 6))
 			{
 				uchar_t len, *data = serialReadData(&len);
-				msg_received = true;
 
+				msg_received = true;
 				if (len == 6)
 					for (uint8_t j=0; j<len; j++)
-						msg_received = msg_received && (data[j] == msg_ok[j]);
+						msg_received = msg_received && (data[j] == msg_ok[j]); // SendDataOK
 			}
 			else if (pend_data_table[1].RdyObjPtr == (OS_PEND_OBJ*)&semTimeout15s)
-				msg_sent = false;
+				msg_sent = false; // Resend message
 
 			OSMutexPost(&gateway_mutex, OS_OPT_POST_NONE, &os_err);
 		}
@@ -312,7 +318,8 @@ static void TaskKeepAlive(void *p_arg)
 
 	while (1)
 	{
-		OSSemPend(&semKeepAlive, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
+		OSSemPend(&semKeepAlive, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err); // Check every second
+		OSFlagPost(&connected, (OS_FLAGS)1, OS_OPT_POST_FLAG_SET, &os_err); // Connected
 		msg_received = msg_sent = false;
 		fail_count = 0;
 
@@ -323,7 +330,7 @@ static void TaskKeepAlive(void *p_arg)
 			if (!msg_sent)
 			{
 				OSSemPend(&semSerialTx, 0, OS_OPT_PEND_BLOCKING, NULL, &os_err);
-				serialWriteData(_msg, 6);
+				serialWriteData(_msg, 6); // KeepAlive
 				timeout_keep_alive = timerStart(TIMER_MS2TICKS(1000), TimeoutKeepAliveCallback);
 				msg_sent = true;
 			}
@@ -332,15 +339,17 @@ static void TaskKeepAlive(void *p_arg)
 			if ((pend_data_table2[0].RdyObjPtr == (OS_PEND_OBJ*)&semSerialRx) && (serialReadStatusLength() == 6))
 			{
 				uchar_t len, *data = serialReadData(&len);
+
 				msg_received = true;
 				if (len == 6)
 					for (uint8_t j=0; j<len; j++)
-						msg_received = msg_received && (data[j] == msg_ok[j]);
+						msg_received = msg_received && (data[j] == msg_ok[j]); // KeepAliveOK
 			}
 			else if (pend_data_table2[1].RdyObjPtr == (OS_PEND_OBJ*)&semKeepAlive)
 			{
-				if (++fail_count >= 5)
+				if (++fail_count >= 5) // Retry for 5 seconds
 				{
+					OSFlagPost(&connected, (OS_FLAGS)1, OS_OPT_POST_FLAG_CLR, &os_err); // Disconnected
 					fail_count = 5;
 					gpioToggle(PIN_LED_RED);
 				}
