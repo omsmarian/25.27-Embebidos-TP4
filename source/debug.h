@@ -1,6 +1,6 @@
 /***************************************************************************//**
-  @file     protocol.h
-  @brief    Data frame packer and unpacker, using protocol '{Id}[ValSign]{Val}'
+  @file     debug.h
+  @brief    Debugging test points definitions and macros
   @author   Group 4: - Oms, Mariano
                      - Solari Raigoso, Agustín
                      - Wickham, Tomás

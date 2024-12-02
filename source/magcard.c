@@ -156,7 +156,7 @@ static MagCardState_t FSM (MagCardEvent_t event) // Main MagCard Event Handler (
 			else if (event == ENABLE_RisingEdge)	{ state = (ProcessData() ? DATA_READY : IDLE); } // Process data outside the ISR
 
 			if (state == DATA_READY)
-				OSSemPost(sem, OS_OPT_POST_1, &os_err);
+				OSSemPost(sem, OS_OPT_POST_1, &os_err); // Notify the main task
 			break;
 
 		case DATA_READY:

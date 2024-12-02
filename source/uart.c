@@ -12,11 +12,8 @@
  * INCLUDE HEADER FILES
  ******************************************************************************/
 
-#include <gpio.h>
 #include "hardware.h"
-// #include "MK64F12.h"
 #include "os.h"
-
 #include "board.h"
 #include "cqueue.h"
 //#include "pisr.h"

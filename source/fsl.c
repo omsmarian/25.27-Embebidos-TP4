@@ -21,9 +21,8 @@ static ticks_t timer_access, timer_error, timer_gateway;
 static OS_Q *msgQueue;
 static bool floors[MAX_FLOORS][MAX_ROOMS];
 static room_t floor_count[MAX_FLOORS];
-// static uint8_t floors[MAX_FLOORS];
 static queue_id_t queue;
-OS_SEM *qSems[2];
+static OS_SEM *qSems[2];
 
 void change_brightness_call(void);
 void add_user_call(void);
@@ -54,11 +53,9 @@ void init_fsl(OS_Q *_msgQueue)
 
 	OSSemCreate(&encoder_sem, "Encoder Semaphore", 0, &err);
 	OSSemCreate(&magcard_sem, "MagCard Semaphore", 0, &err);
-	// OSSemCreate(&error_sem, "Error Semaphore", 0, &err);
 
 	pend_data_table[0].PendObjPtr = (OS_PEND_OBJ*)&encoder_sem;
 	pend_data_table[1].PendObjPtr = (OS_PEND_OBJ*)&magcard_sem;
-	// pend_data_table[2].PendObjPtr = (OS_PEND_OBJ*)&error_sem;
 
 	PIT_Init(PIT0_ID, manage_access, 10);
 
@@ -70,18 +67,10 @@ void init_fsl(OS_Q *_msgQueue)
 	add_user("00000004", "4444", 2, 1);
 	add_user("00000005", "5555", 3, 0);
 	add_user("03192206", "1234", 3, 1);
-//	floor_count[3] = floor_count[2] = floor_count[1] = 2;
 }
 
 void update_fsl()
 {
-// 	OSPendMulti(pend_data_table, 3, 0, OS_OPT_PEND_BLOCKING, &err);
-// 	update_menu(); // Update the menu
-// 	manage_access(); //Manage access
-// }
-
-// void update_menu()
-// {
 	OSSemPend(&encoder_sem, 0, OS_OPT_PEND_BLOCKING, NULL, &err);
 
 	int key = read_key();
@@ -123,7 +112,6 @@ void print_menu(enum states_fsl state)
 		case BRIGHTNESS:		DisplayWriteChar("BRIG");		break;
 	}
 }
-
 
 int read_key(void)
 {
@@ -171,8 +159,6 @@ bool read_from_encoder(char *id)
 {
 	static int digit_index = 0;
 	static int current_digit = 0;
-
-	//static char* ptrKey = "    ";
 
 	int key = read_key();
 	if (key == 0)
@@ -222,7 +208,6 @@ bool read_from_encoder(char *id)
 	else if(key == 2) //GO BACK IN MENU
 	{
 		return_flag = true;
-		// OSSemPost(&error_sem, OS_OPT_POST_1, &err);
 		digit_index = 0;
 		current_digit = 0;
 		return false;
@@ -256,9 +241,6 @@ bool read_from_card(char *id)
 		data /= 10;
 	}
 	id[8] = '\0';
-
-	// sprintf(data_str, "%016llu", data); // Convertir data a cadena, asegurándose de que tenga 16 dígitos
-	// strncpy(id, &data_str[8], 8); // Copiar los últimos 8 dígitos a id
 
 	return true;
 }
@@ -335,8 +317,6 @@ void read_id(char *id)
 	MagCardClearData();
 	while (!read_successful)
 	{
-		// manage_access();
-
 		OSPendMulti(pend_data_table, 2, 0, OS_OPT_PEND_BLOCKING, &err);
 
 		if (error_flag)
@@ -345,13 +325,6 @@ void read_id(char *id)
 			read_successful = read_from_encoder(id);
 		else if (pend_data_table[1].RdyObjPtr == (OS_PEND_OBJ*)&magcard_sem)
 			read_successful = read_from_card(id);
-
-		// if (!strcmp(pend_data_table[2].RdyObjPtr->NamePtr, "Error Semaphore"))
-		// 	break;
-		// else if (!strcmp(pend_data_table[0].RdyObjPtr->NamePtr, "Encoder Semaphore"))
-		// 	read_successful = read_from_encoder(id);
-		// else if (!strcmp(pend_data_table[1].RdyObjPtr->NamePtr, "MagCard Semaphore"))
-		// 	read_successful = read_from_card(id);
 	}
 }
 
@@ -362,8 +335,6 @@ int type_of_pasword(void)
 
 	while(1)
 	{
-		// manage_access();
-
 		OSSemPend(&encoder_sem, 0, OS_OPT_PEND_BLOCKING, NULL, &err);
 
 		int key = read_key();
@@ -381,7 +352,6 @@ int type_of_pasword(void)
 		else if (key == 2) //Go back
 		{
 			return_flag = true;
-			// OSSemPost(&error_sem, OS_OPT_POST_1, &err);
 			return 0;
 		}
 	}
@@ -402,8 +372,6 @@ void read_password_without_length(char * id, char *password)
 
 	while (digit_index < digits)
 	{
-		// manage_access();
-
 		OSSemPend(&encoder_sem, 0, OS_OPT_PEND_BLOCKING, NULL, &err);
 
 		int key = read_key();
@@ -412,14 +380,12 @@ void read_password_without_length(char * id, char *password)
 			password[digit_index] = '0' + current_digit;
 			password[digit_index + 1] = '\0'; // Null-terminate the password string
 
-			//DisplayWriteChar(password);
 			DisplayWritePassword(digit_index, current_digit);
 		} else if (key == 3) { //RIGHT
 			current_digit = (current_digit == 9) ? 0 : current_digit + 1;
 			password[digit_index] = '0' + current_digit;
 			password[digit_index + 1] = '\0'; // Null-terminate the password string
 
-			//DisplayWriteChar(password);
 			DisplayWritePassword(digit_index, current_digit);
 		} else if (key == 4) { //ENTER
 			password[digit_index] = '0' + current_digit;
@@ -445,7 +411,6 @@ void read_password_without_length(char * id, char *password)
 		else if (key == 2) //Go back
 		{
 				return_flag = true;
-				// OSSemPost(&error_sem, OS_OPT_POST_1, &err);
 				digit_index = 0;
 				current_digit = 0;
 				break;
@@ -477,8 +442,6 @@ void read_password(char *password)
 
 	while (digit_index < digits)
 	{
-		// manage_access();
-
 		OSSemPend(&encoder_sem, 0, OS_OPT_PEND_BLOCKING, NULL, &err);
 
 		key = read_key();
@@ -681,50 +644,30 @@ void access_system_call(void)
 		DisplayWriteChar("ACCE");
 		if(access_flag == false)
 		{
-			access_flag = true;
-			// timer_access = timerStart(TIMER_MS2TICKS(5000));
-//			LEDS_Set(ALL);
-
 			floor_t floor = return_user_floor(id);
 			room_t room = return_user_room(id);
+
+			access_flag = true;
 			if (floors[floor][room])
 				floor_count[floor]--;
 			else
 				floor_count[floor]++;
 			floors[floor][room] = !floors[floor][room];
 
-			// char floor_count_str[(MAX_FLOORS - 1) * 2 + 1] = {0};
 			char message[(MAX_FLOORS - 1) * 2 + 6] = { 0xAA, 0x55, 0xC3, 0x3C, 0x00, 0x01,
 													   floor_count[1]%10, floor_count[1]/10,
 													   floor_count[2]%10, floor_count[2]/10,
 													   floor_count[3]%10, floor_count[3]/10 };
-//			for (int i = 0; i < MAX_FLOORS - 1; i++)
-//			{
-//				// char count_str[3];
-//				int count = floor_count[i+1];
-//				message[i + 0 + 6] = (count / 10); //+ '0';
-//				message[i + 1 + 6] = (count % 10); //+ '0';
-//				// count_str[i + 2 - 1] = '\0';
-//				// strcat(floor_count_str, count_str);
-//			}
 			message[4] = (MAX_FLOORS - 1) * 2 + 1;
-//			OSQFlush(msgQueue, &err);
-//			OSQPost(msgQueue, &floor_count_str[0], (MAX_FLOORS - 1) * 2, OS_OPT_POST_FIFO, &err);
+
 			queueClear(queue);
 			for (int i = 0; i < (MAX_FLOORS - 1) * 2 + 6; i++)
 				queuePush(queue, message[i]);
+
 			OSSemPost(qSems[1], OS_OPT_POST_1, &err);
-			OS_ERR aux = err;
-		}
-		else
-		{
-			// timer_access = timerStart(TIMER_MS2TICKS(5000));
-//			LEDS_Set(ONLY_CENTER);
 		}
 
 		timer_access = timerStart(TIMER_MS2TICKS(5000), NULL);
-//		OSTmrCreate(&timer_access, "Access Timer", 0, 5000, OS_OPT_TMR_ONE_SHOT, NULL, NULL, &err);
-//		OSTmrStart(&timer_access, &err);
 
 		LEDS_Set(0b001);
 		LEDS_Set(0b010);
@@ -734,81 +677,41 @@ void access_system_call(void)
 	{
 		DisplayWriteChar("ERR ");
 		if (error_flag == false)
-		{
 			error_flag = true;
-			// timer_error = timerStart(TIMER_MS2TICKS(5000));
-		}
-		else
-		{
-			// timer_error = timerStart(TIMER_MS2TICKS(5000));
-		}
 
 		timer_error = timerStart(TIMER_MS2TICKS(5000), NULL);
-//		OSTmrCreate(&timer_error, "Error Timer", 0, 5000, OS_OPT_TMR_ONE_SHOT, NULL, NULL, &err);
-//		OSTmrStart(&timer_error, &err);
 
 		LEDS_Set(0b010);
 	}
-
-//	print_menu(state);
 }
 
 void manage_access(void)
 {
 	bool timer_access_expired = timerExpired(timer_access);
 	bool timer_error_expired = timerExpired(timer_error);
-//	bool timer_gateways_expired = timerExpired(timer_gateway);
 
  	if (timer_access_expired)
-// 	if (OSTmrRemainGet(&timer_access, &err))
  	{
  		access_flag = false;
- 		// LEDS_Set(NOTHING);
 		gpioWrite(PIN_LED_GREEN, HIGH);
  	}
  	else
- 	{
- 		// LEDS_Set(0b001);
- 		// LEDS_Set(0b010);
- 		// LEDS_Set(0b100);
 		gpioWrite(PIN_LED_GREEN, LOW);
- 	}
 
  	if (timer_error_expired)
-// 	if (OSTmrRemainGet(&timer_error, &err))
  	{
  		error_flag = false;
- 		// LEDS_Set(NOTHING);
 		gpioWrite(PIN_LED_RED, HIGH);
  	}
  	else
- 	{
- 		// LEDS_Set(0b010);
 		gpioWrite(PIN_LED_RED, LOW);
- 	}
 
 	if (timer_access_expired && timer_error_expired)
 		gpioWrite(PIN_LED_BLUE, LOW);
 	else
 		gpioWrite(PIN_LED_BLUE, HIGH);
 
-//	if (timer_gateways_expired)
-//	{
-//		OSSemPost(qSems[0], OS_OPT_POST_1, &err);
-//	}
 }
-
-//void manage_access(void)
-//{
-//	access_flag = false;
-//	LEDS_Set(NOTHING);
-//}
-//
-//void manage_error(void)
-//{
-//	error_flag = false;
-//	LEDS_Set(NOTHING);
-//}
 
 void setQueue(queue_id_t q)
 {

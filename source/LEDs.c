@@ -14,7 +14,6 @@
 //#include "pisr.h"
 #include "PIT.h"
 
-
 /*******************************************************************************
  * CONSTANT AND MACRO DEFINITIONS USING #DEFINE
  ******************************************************************************/
@@ -23,7 +22,6 @@
 #define LED1 0b11
 #define LED2 0b01
 #define LED3 0b10
-
 
 /*******************************************************************************
  * FUNCTION PROTOTYPES FOR PRIVATE FUNCTIONS WITH FILE LEVEL SCOPE
@@ -40,7 +38,6 @@ void LEDS_refresh(void);
  */
 void LEDS_On(uint8_t ledNumber);
 
-
 /*******************************************************************************
  * STATIC VARIABLES AND CONST VARIABLES WITH FILE LEVEL SCOPE
  ******************************************************************************/
@@ -48,32 +45,31 @@ void LEDS_On(uint8_t ledNumber);
 static uint8_t ledStatus;
 static uint8_t counter;
 
-
 /*******************************************************************************
  *******************************************************************************
-                        GLOBAL FUNCTION DEFINITIONS
+						GLOBAL FUNCTION DEFINITIONS
  *******************************************************************************
  ******************************************************************************/
 
 bool LEDS_Init(void)
 {
-    gpioWrite(PIN_LED_EXT_STATUS0, LOW);
-    gpioWrite(PIN_LED_EXT_STATUS0, LOW);
-    gpioMode(PIN_LED_EXT_STATUS0, OUTPUT);
-    gpioMode(PIN_LED_EXT_STATUS1, OUTPUT);
-    
-//    pisrRegister(LEDS_refresh, 100);    // 7 ms
+	gpioWrite(PIN_LED_EXT_STATUS0, LOW);
+	gpioWrite(PIN_LED_EXT_STATUS0, LOW);
+	gpioMode(PIN_LED_EXT_STATUS0, OUTPUT);
+	gpioMode(PIN_LED_EXT_STATUS1, OUTPUT);
+	
+//    pisrRegister(LEDS_refresh, 100);
 	PIT_Init(PIT0_ID, LEDS_refresh, 200);
 
-    return true;
+	return true;
 }
 
 void LEDS_Set(uint8_t num)
 {
-    if((num <= 7) && (num >= 0))
-        ledStatus = num;
-    else
-        ledStatus = 0b000;
+	if((num <= 7) && (num >= 0))
+		ledStatus = num;
+	else
+		ledStatus = 0b000;
 	if(num == 0b000)
 	{
 		gpioWrite(PIN_LED_EXT_STATUS0, LOW);
@@ -94,32 +90,31 @@ void LEDS_Set(uint8_t num)
 	}
 }
 
-
 /*******************************************************************************
  *******************************************************************************
-                        LOCAL FUNCTION DEFINITIONS
+						LOCAL FUNCTION DEFINITIONS
  *******************************************************************************
  ******************************************************************************/
 
 void LEDS_On(uint8_t ledNumber)
 {
-    gpioWrite(PIN_LED_EXT_STATUS0, ledNumber & 0b01);
-    gpioWrite(PIN_LED_EXT_STATUS1, ledNumber & 0b10);
+	gpioWrite(PIN_LED_EXT_STATUS0, ledNumber & 0b01);
+	gpioWrite(PIN_LED_EXT_STATUS1, ledNumber & 0b10);
 }
 
 void LEDS_refresh(void)
 {
-    if((ledStatus & 0b100) && (counter == 0))
-        LEDS_On(LED3);
-    else if((ledStatus & 0b010) && (counter == 1))
-        LEDS_On(LED2);
-    else if((ledStatus & 0b001) && (counter == 2))
-        LEDS_On(LED1);
-    else
-        LEDS_On(NO_LED);
-    counter++;
-    if (counter == 3) counter = 0;
-}
+	if((ledStatus & 0b100) && (counter == 0))
+		LEDS_On(LED3);
+	else if((ledStatus & 0b010) && (counter == 1))
+		LEDS_On(LED2);
+	else if((ledStatus & 0b001) && (counter == 2))
+		LEDS_On(LED1);
+	else
+		LEDS_On(NO_LED);
 
+	counter++;
+	if (counter == 3) counter = 0;
+}
 
 /******************************************************************************/

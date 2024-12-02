@@ -9,12 +9,12 @@
  ******************************************************************************/
 
 #include <math.h>
+
 #include "display.h"
 #include "board.h"
 #include "gpio.h"
 //#include "pisr.h"
 #include "macros.h"
-
 
 /*******************************************************************************
  * CONSTANT AND MACRO DEFINITIONS USING #DEFINE
@@ -31,7 +31,6 @@
 #define DASH					NUMBERS + LETTERS
 #define DP						NUMBERS + LETTERS + 1
 #define CLEAR					NUMBERS + LETTERS + 2
-
 
 /*******************************************************************************
  * FUNCTION PROTOTYPES FOR PRIVATE FUNCTIONS WITH FILE LEVEL SCOPE
@@ -53,7 +52,6 @@ void RefreshDisplay (void);
  * @example __Char2Segments__('A'); // Returns 0b00110111
  */
 uint8_t __Char2Segments__ (char character);
-
 
 /*******************************************************************************
  * STATIC VARIABLES AND CONST VARIABLES WITH FILE LEVEL SCOPE
@@ -114,7 +112,6 @@ const uint8_t _digits [] = { PIN_DISPLAY_SEL1,
 static uint8_t _buffer[DISPLAY_DIGITS];
 // static uint8_t _index = 0;
 static int8_t _brightness = DISPLAY_MAX_BRIGHTNESS;
-
 
 /*******************************************************************************
  *******************************************************************************
@@ -208,7 +205,6 @@ int8_t DisplaySetBrightness (int8_t brightness)
 	return _brightness;
 }
 
-
 /*******************************************************************************
  *******************************************************************************
 						LOCAL FUNCTION DEFINITIONS
@@ -252,6 +248,5 @@ uint8_t __Char2Segments__ (char c)
 
 	return buffer;
 }
-
 
 /******************************************************************************/

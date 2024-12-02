@@ -14,7 +14,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-
 /*******************************************************************************
  * CONSTANT AND MACRO DEFINITIONS USING #DEFINE
  ******************************************************************************/
@@ -29,7 +28,6 @@
 #define DISPLAY_MAX_BRIGHTNESS	25
 
 #define MAX_STRING_LENGTH		16
-
 
 /*******************************************************************************
  * FUNCTION PROTOTYPES WITH GLOBAL SCOPE

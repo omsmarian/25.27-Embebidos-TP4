@@ -9,7 +9,6 @@
  ******************************************************************************/
 
 #include "os.h"
-
 #include "encoder.h"
 #include "board.h"
 //#include "pisr.h"
@@ -36,10 +35,6 @@ typedef struct{
 }state_flags_t;
 
 /*******************************************************************************
- * VARIABLES WITH GLOBAL SCOPE
- ******************************************************************************/
-
-/*******************************************************************************
  * FUNCTION PROTOTYPES FOR PRIVATE FUNCTIONS WITH FILE LEVEL SCOPE
  ******************************************************************************/
 
@@ -52,10 +47,6 @@ void directionCallback(void);
  * @brief Checks for switch gesture
  */
 void switchCallback(void);
-
-/*******************************************************************************
- * ROM CONST VARIABLES WITH FILE LEVEL SCOPE
- ******************************************************************************/
 
 /*******************************************************************************
  * STATIC VARIABLES AND CONST VARIABLES WITH FILE LEVEL SCOPE

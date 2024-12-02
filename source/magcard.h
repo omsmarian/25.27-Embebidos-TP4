@@ -11,9 +11,10 @@
  * INCLUDE HEADER FILES
  ******************************************************************************/
 
-#include "os.h"
 #include <stdbool.h>
 #include <stdint.h>
+
+#include "os.h"
 
 /*******************************************************************************
  * CONSTANT AND MACRO DEFINITIONS USING #DEFINE

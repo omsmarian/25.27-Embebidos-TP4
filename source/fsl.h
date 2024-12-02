@@ -11,11 +11,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+
 #include "os.h"
 //#include "fsl_debug_console.h"
-
 #include "users.h"
-
 #include "encoder.h"
 #include "display.h"
 #include "macros.h"
@@ -38,14 +37,11 @@ void update_fsl();
 void update_menu();
 void clear_terminal();
 void init_fsl(OS_Q *msgQueue);
-
 bool read_from_encoder(char *id);
-
 void access_system_call(void);
 
 void setQueue(queue_id_t q);
 void setQueueSems(OS_SEM *semRx, OS_SEM *semTx);
-
 
 enum states_fsl {ADD_USER, DELETE_USER, CHANGE_PASSWORD, ACCESS_SYSTEM, BRIGHTNESS};
 
